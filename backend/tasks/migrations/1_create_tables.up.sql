@@ -6,15 +6,6 @@ CREATE TABLE boards (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE board_members (
-  id BIGSERIAL PRIMARY KEY,
-  board_id BIGINT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
-  user_id TEXT NOT NULL,
-  role TEXT DEFAULT 'member',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(board_id, user_id)
-);
-
 CREATE TABLE lists (
   id BIGSERIAL PRIMARY KEY,
   title TEXT NOT NULL,
@@ -44,7 +35,6 @@ CREATE TABLE card_members (
   UNIQUE(card_id, user_id)
 );
 
-CREATE INDEX idx_board_members_user_id ON board_members(user_id);
 CREATE INDEX idx_lists_board_id ON lists(board_id);
 CREATE INDEX idx_cards_list_id ON cards(list_id);
 CREATE INDEX idx_cards_due_date ON cards(due_date);

@@ -1,18 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Calendar, CheckSquare, DollarSign, Plus, Home, CalendarDays } from "lucide-react";
-import { useBackend } from "../hooks/useBackend";
+import { Calendar, CheckSquare, DollarSign, Plus, User } from "lucide-react";
+import backend from "~backend/client";
 import { BottomNavigation } from "./BottomNavigation";
-import { UserButton } from "@clerk/clerk-react";
 
 export function Homepage() {
   const navigate = useNavigate();
-  const backend = useBackend();
-
-  const { data: user } = useQuery({
-    queryKey: ["user"],
-    queryFn: () => backend.auth.getUserInfo(),
-  });
 
   const { data: boards } = useQuery({
     queryKey: ["boards"],
@@ -97,18 +90,12 @@ export function Homepage() {
         <div className="flex justify-between items-start">
           <div>
             <h1 className="text-2xl font-semibold text-white">
-              Welcome Back, {user?.name || "User"}!
+              Welcome Back!
             </h1>
             <p className="text-white/80 mt-1">{currentDate}</p>
           </div>
-          <div className="w-10 h-10">
-            <UserButton 
-              appearance={{
-                elements: {
-                  avatarBox: "w-10 h-10"
-                }
-              }}
-            />
+          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+            <User className="w-6 h-6 text-white" />
           </div>
         </div>
       </div>

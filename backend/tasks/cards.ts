@@ -1,5 +1,4 @@
 import { api, APIError } from "encore.dev/api";
-import { getAuthData } from "~encore/auth";
 import { tasksDB } from "./db";
 import type { Card, CardWithMembers } from "./types";
 
@@ -39,21 +38,8 @@ export interface GetTodayCardsResponse {
 
 // Creates a new card in a list.
 export const createCard = api<CreateCardRequest, CreateCardResponse>(
-  { auth: true, expose: true, method: "POST", path: "/cards" },
+  { expose: true, method: "POST", path: "/cards" },
   async (req) => {
-    const auth = getAuthData()!;
-    
-    // Check if user is a member of the board
-    const membership = await tasksDB.queryRow`
-      SELECT 1 FROM board_members bm
-      JOIN lists l ON l.board_id = bm.board_id
-      WHERE l.id = ${req.list_id} AND bm.user_id = ${auth.userID}
-    `;
-    
-    if (!membership) {
-      throw APIError.permissionDenied("not a member of this board");
-    }
-    
     // Get the next position
     const maxPosition = await tasksDB.queryRow<{ max_position: number | null }>`
       SELECT MAX(position) as max_position FROM cards
@@ -83,22 +69,8 @@ export const createCard = api<CreateCardRequest, CreateCardResponse>(
 
 // Gets a specific card with its members.
 export const getCard = api<{ id: number }, GetCardResponse>(
-  { auth: true, expose: true, method: "GET", path: "/cards/:id" },
+  { expose: true, method: "GET", path: "/cards/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
-    // Check if user is a member of the board
-    const membership = await tasksDB.queryRow`
-      SELECT 1 FROM board_members bm
-      JOIN lists l ON l.board_id = bm.board_id
-      JOIN cards c ON c.list_id = l.id
-      WHERE c.id = ${req.id} AND bm.user_id = ${auth.userID}
-    `;
-    
-    if (!membership) {
-      throw APIError.notFound("card not found");
-    }
-    
     const card = await tasksDB.queryRow<Card>`
       SELECT * FROM cards WHERE id = ${req.id}
     `;
@@ -123,22 +95,8 @@ export const getCard = api<{ id: number }, GetCardResponse>(
 
 // Updates a card.
 export const updateCard = api<UpdateCardRequest, UpdateCardResponse>(
-  { auth: true, expose: true, method: "PUT", path: "/cards/:id" },
+  { expose: true, method: "PUT", path: "/cards/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
-    // Check if user is a member of the board
-    const membership = await tasksDB.queryRow`
-      SELECT 1 FROM board_members bm
-      JOIN lists l ON l.board_id = bm.board_id
-      JOIN cards c ON c.list_id = l.id
-      WHERE c.id = ${req.id} AND bm.user_id = ${auth.userID}
-    `;
-    
-    if (!membership) {
-      throw APIError.permissionDenied("not authorized to update this card");
-    }
-    
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -208,45 +166,26 @@ export const updateCard = api<UpdateCardRequest, UpdateCardResponse>(
 
 // Deletes a card.
 export const deleteCard = api<{ id: number }, void>(
-  { auth: true, expose: true, method: "DELETE", path: "/cards/:id" },
+  { expose: true, method: "DELETE", path: "/cards/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
-    // Check if user is a member of the board
-    const membership = await tasksDB.queryRow`
-      SELECT 1 FROM board_members bm
-      JOIN lists l ON l.board_id = bm.board_id
-      JOIN cards c ON c.list_id = l.id
-      WHERE c.id = ${req.id} AND bm.user_id = ${auth.userID}
-    `;
-    
-    if (!membership) {
-      throw APIError.permissionDenied("not authorized to delete this card");
-    }
-    
     await tasksDB.exec`DELETE FROM cards WHERE id = ${req.id}`;
   }
 );
 
-// Gets all cards due today for the authenticated user.
+// Gets all cards due today.
 export const getTodayCards = api<void, GetTodayCardsResponse>(
-  { auth: true, expose: true, method: "GET", path: "/cards/today" },
+  { expose: true, method: "GET", path: "/cards/today" },
   async () => {
-    const auth = getAuthData()!;
-    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
     const cards = await tasksDB.queryAll<Card>`
-      SELECT c.* FROM cards c
-      JOIN lists l ON c.list_id = l.id
-      JOIN board_members bm ON l.board_id = bm.board_id
-      WHERE bm.user_id = ${auth.userID}
-        AND c.due_date >= ${today}
-        AND c.due_date < ${tomorrow}
-      ORDER BY c.due_date ASC
+      SELECT * FROM cards
+      WHERE due_date >= ${today}
+        AND due_date < ${tomorrow}
+      ORDER BY due_date ASC
     `;
     
     const cardsWithMembers: CardWithMembers[] = [];

@@ -6,14 +6,6 @@ export interface Board {
   updated_at: Date;
 }
 
-export interface BoardMember {
-  id: number;
-  board_id: number;
-  user_id: string;
-  role: string;
-  created_at: Date;
-}
-
 export interface List {
   id: number;
   title: string;

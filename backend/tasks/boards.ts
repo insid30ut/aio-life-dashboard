@@ -1,5 +1,4 @@
 import { api, APIError } from "encore.dev/api";
-import { getAuthData } from "~encore/auth";
 import { tasksDB } from "./db";
 import type { Board, BoardWithLists, ListWithCards, CardWithMembers } from "./types";
 
@@ -22,10 +21,8 @@ export interface GetBoardResponse {
 
 // Creates a new board.
 export const createBoard = api<CreateBoardRequest, CreateBoardResponse>(
-  { auth: true, expose: true, method: "POST", path: "/boards" },
+  { expose: true, method: "POST", path: "/boards" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     const board = await tasksDB.queryRow<Board>`
       INSERT INTO boards (title, background)
       VALUES (${req.title}, ${req.background || '#007AFF'})
@@ -36,27 +33,17 @@ export const createBoard = api<CreateBoardRequest, CreateBoardResponse>(
       throw APIError.internal("failed to create board");
     }
     
-    // Add the creator as a board member
-    await tasksDB.exec`
-      INSERT INTO board_members (board_id, user_id, role)
-      VALUES (${board.id}, ${auth.userID}, 'owner')
-    `;
-    
     return { board };
   }
 );
 
-// Lists all boards the user is a member of.
+// Lists all boards.
 export const listBoards = api<void, ListBoardsResponse>(
-  { auth: true, expose: true, method: "GET", path: "/boards" },
+  { expose: true, method: "GET", path: "/boards" },
   async () => {
-    const auth = getAuthData()!;
-    
     const boards = await tasksDB.queryAll<Board>`
-      SELECT b.* FROM boards b
-      JOIN board_members bm ON b.id = bm.board_id
-      WHERE bm.user_id = ${auth.userID}
-      ORDER BY b.updated_at DESC
+      SELECT * FROM boards
+      ORDER BY updated_at DESC
     `;
     
     return { boards };
@@ -65,20 +52,8 @@ export const listBoards = api<void, ListBoardsResponse>(
 
 // Gets a specific board with all its lists and cards.
 export const getBoard = api<{ id: number }, GetBoardResponse>(
-  { auth: true, expose: true, method: "GET", path: "/boards/:id" },
+  { expose: true, method: "GET", path: "/boards/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
-    // Check if user is a member of this board
-    const membership = await tasksDB.queryRow`
-      SELECT 1 FROM board_members
-      WHERE board_id = ${req.id} AND user_id = ${auth.userID}
-    `;
-    
-    if (!membership) {
-      throw APIError.notFound("board not found");
-    }
-    
     const board = await tasksDB.queryRow<Board>`
       SELECT * FROM boards WHERE id = ${req.id}
     `;
