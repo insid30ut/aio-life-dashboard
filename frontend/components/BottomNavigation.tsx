@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, CheckSquare, DollarSign, Calendar } from "lucide-react";
+import { Home, CheckSquare, ShoppingCart, ChefHat } from "lucide-react";
 
 export function BottomNavigation() {
   const navigate = useNavigate();
@@ -8,8 +8,8 @@ export function BottomNavigation() {
   const navItems = [
     { icon: Home, label: "Home", path: "/" },
     { icon: CheckSquare, label: "Tasks", path: "/tasks" },
-    { icon: DollarSign, label: "Budget", path: "/budget" },
-    { icon: Calendar, label: "Calendar", path: "/calendar" },
+    { icon: ShoppingCart, label: "Shopping", path: "/shopping" },
+    { icon: ChefHat, label: "Meals", path: "/meals" },
   ];
 
   return (
@@ -17,7 +17,7 @@ export function BottomNavigation() {
       <div className="flex items-center justify-around h-full px-4">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path || 
-            (item.path === "/tasks" && location.pathname.startsWith("/tasks"));
+            (item.path !== "/" && location.pathname.startsWith(item.path));
           
           return (
             <button

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Calendar, CheckSquare, DollarSign, Plus } from "lucide-react";
+import { Calendar, CheckSquare, DollarSign, Plus, ShoppingCart, ChefHat, Target, BookOpen } from "lucide-react";
 import { UserButton } from "@clerk/clerk-react";
 import { useBackend } from "../hooks/useBackend";
 import { BottomNavigation } from "./BottomNavigation";
@@ -19,6 +19,11 @@ export function Homepage() {
     queryFn: () => backend.tasks.getTodayCards(),
   });
 
+  const { data: shoppingLists } = useQuery({
+    queryKey: ["shopping-lists"],
+    queryFn: () => backend.shopping.getLists(),
+  });
+
   const currentDate = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -35,22 +40,22 @@ export function Homepage() {
       textColor: "text-blue-600",
     },
     {
-      title: "Budget",
-      value: "$0",
+      title: "Shopping",
+      value: shoppingLists?.lists?.length || 0,
       color: "border-green-500",
       bgColor: "bg-green-50",
       textColor: "text-green-600",
     },
     {
-      title: "Events",
-      value: "0",
+      title: "Budget",
+      value: "$0",
       color: "border-purple-500",
       bgColor: "bg-purple-50",
       textColor: "text-purple-600",
     },
   ];
 
-  const featureCards = [
+  const primaryFeatures = [
     {
       title: "Task Manager",
       description: "Organize your tasks with boards and lists",
@@ -60,27 +65,62 @@ export function Homepage() {
       onClick: () => navigate("/tasks"),
     },
     {
+      title: "Shopping Hub",
+      description: "Manage your shopping and grocery lists",
+      icon: ShoppingCart,
+      color: "border-l-green-500",
+      bgColor: "bg-green-50",
+      onClick: () => navigate("/shopping"),
+    },
+    {
       title: "Budget Tracker",
       description: "Track your expenses and income",
       icon: DollarSign,
-      color: "border-l-green-500",
-      bgColor: "bg-green-50",
+      color: "border-l-purple-500",
+      bgColor: "bg-purple-50",
       onClick: () => navigate("/budget"),
     },
     {
       title: "Calendar",
       description: "Manage your schedule and events",
       icon: Calendar,
-      color: "border-l-purple-500",
-      bgColor: "bg-purple-50",
-      onClick: () => navigate("/calendar"),
-    },
-    {
-      title: "Add New",
-      description: "Quick actions and shortcuts",
-      icon: Plus,
       color: "border-l-orange-500",
       bgColor: "bg-orange-50",
+      onClick: () => navigate("/calendar"),
+    },
+  ];
+
+  const secondaryFeatures = [
+    {
+      title: "Meal Planner",
+      description: "Plan your weekly meals and recipes",
+      icon: ChefHat,
+      color: "border-l-teal-500",
+      bgColor: "bg-teal-50",
+      onClick: () => navigate("/meals"),
+    },
+    {
+      title: "Goals Tracker",
+      description: "Track your shared goals and milestones",
+      icon: Target,
+      color: "border-l-indigo-500",
+      bgColor: "bg-indigo-50",
+      onClick: () => navigate("/goals"),
+    },
+    {
+      title: "Digital Journal",
+      description: "Capture memories and thoughts",
+      icon: BookOpen,
+      color: "border-l-pink-500",
+      bgColor: "bg-pink-50",
+      onClick: () => navigate("/journal"),
+    },
+    {
+      title: "Quick Add",
+      description: "Quick actions and shortcuts",
+      icon: Plus,
+      color: "border-l-gray-500",
+      bgColor: "bg-gray-50",
       onClick: () => {},
     },
   ];
@@ -150,9 +190,10 @@ export function Homepage() {
         </div>
       )}
 
-      {/* Main Feature Cards */}
-      <div className="px-4 space-y-4">
-        {featureCards.map((card, index) => (
+      {/* Primary Feature Cards */}
+      <div className="px-4 space-y-4 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900">Main Features</h2>
+        {primaryFeatures.map((card, index) => (
           <div
             key={index}
             onClick={card.onClick}
@@ -169,6 +210,30 @@ export function Homepage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Secondary Feature Cards */}
+      <div className="px-4 space-y-4">
+        <h2 className="text-lg font-semibold text-gray-900">More Tools</h2>
+        <div className="grid grid-cols-2 gap-4">
+          {secondaryFeatures.map((card, index) => (
+            <div
+              key={index}
+              onClick={card.onClick}
+              className={`bg-white rounded-2xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow border-l-4 ${card.color} ${card.bgColor}`}
+            >
+              <div className="flex flex-col items-center text-center gap-3">
+                <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                  <card.icon className="w-5 h-5 text-gray-700" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">{card.title}</h3>
+                  <p className="text-gray-600 text-xs mt-1">{card.description}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <BottomNavigation />
