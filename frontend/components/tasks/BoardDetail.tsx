@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Plus, MoreHorizontal, CheckSquare, Calendar, MessageSquare } from "lucide-react";
 import { useBackend } from "../../hooks/useBackend";
 import { useState } from "react";
 import { CreateListDialog } from "./CreateListDialog";
 import { CreateCardDialog } from "./CreateCardDialog";
 import { CardDetail } from "./CardDetail";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import type { CardWithMembers } from "~backend/tasks/types";
 
@@ -105,7 +106,7 @@ export function BoardDetail() {
           {board.lists.map((list) => (
             <div
               key={list.id}
-              className="min-w-[280px] bg-gray-100 rounded-xl p-4"
+              className="min-w-[300px] bg-gray-100 rounded-xl p-4"
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900">{list.title}</h3>
@@ -129,21 +130,52 @@ export function BoardDetail() {
                     {card.labels.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-2">
                         {card.labels.map((label, idx) => (
-                          <span
+                          <Badge
                             key={idx}
-                            className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full"
+                            variant="secondary"
+                            className="text-xs"
                           >
                             {label}
-                          </span>
+                          </Badge>
                         ))}
                       </div>
                     )}
                     
-                    {card.due_date && (
-                      <div className="text-xs text-gray-500">
-                        Due: {new Date(card.due_date).toLocaleDateString()}
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <div className="flex items-center gap-2">
+                        {card.due_date && (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(card.due_date).toLocaleDateString()}
+                          </div>
+                        )}
                       </div>
-                    )}
+                      
+                      <div className="flex items-center gap-2">
+                        {card.description && (
+                          <div className="flex items-center gap-1">
+                            <MessageSquare className="w-3 h-3" />
+                          </div>
+                        )}
+                        {card.members.length > 0 && (
+                          <div className="flex -space-x-1">
+                            {card.members.slice(0, 3).map((member, idx) => (
+                              <div
+                                key={idx}
+                                className="w-5 h-5 bg-blue-500 rounded-full border border-white flex items-center justify-center text-white text-xs"
+                              >
+                                {member.charAt(0).toUpperCase()}
+                              </div>
+                            ))}
+                            {card.members.length > 3 && (
+                              <div className="w-5 h-5 bg-gray-400 rounded-full border border-white flex items-center justify-center text-white text-xs">
+                                +{card.members.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -151,7 +183,7 @@ export function BoardDetail() {
           ))}
           
           {/* Add List Button */}
-          <div className="min-w-[280px]">
+          <div className="min-w-[300px]">
             <button
               onClick={() => setShowCreateList(true)}
               className="w-full h-12 bg-white/50 hover:bg-white/70 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"

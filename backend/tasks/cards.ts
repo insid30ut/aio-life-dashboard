@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
+import { getAuthData } from "~encore/auth";
 import { tasksDB } from "./db";
-import type { Card, CardWithMembers } from "./types";
+import type { Card, CardWithMembers, CardWithDetails, ChecklistWithItems, Attachment, Comment } from "./types";
 
 export interface CreateCardRequest {
   title: string;
@@ -29,7 +30,7 @@ export interface UpdateCardResponse {
 }
 
 export interface GetCardResponse {
-  card: CardWithMembers;
+  card: CardWithDetails;
 }
 
 export interface GetTodayCardsResponse {
@@ -38,7 +39,7 @@ export interface GetTodayCardsResponse {
 
 // Creates a new card in a list.
 export const createCard = api<CreateCardRequest, CreateCardResponse>(
-  { expose: true, method: "POST", path: "/cards" },
+  { auth: true, expose: true, method: "POST", path: "/cards" },
   async (req) => {
     // Get the next position
     const maxPosition = await tasksDB.queryRow<{ max_position: number | null }>`
@@ -67,9 +68,9 @@ export const createCard = api<CreateCardRequest, CreateCardResponse>(
   }
 );
 
-// Gets a specific card with its members.
+// Gets a specific card with all its details.
 export const getCard = api<{ id: number }, GetCardResponse>(
-  { expose: true, method: "GET", path: "/cards/:id" },
+  { auth: true, expose: true, method: "GET", path: "/cards/:id" },
   async (req) => {
     const card = await tasksDB.queryRow<Card>`
       SELECT * FROM cards WHERE id = ${req.id}
@@ -79,23 +80,57 @@ export const getCard = api<{ id: number }, GetCardResponse>(
       throw APIError.notFound("card not found");
     }
     
+    // Get members
     const members = await tasksDB.queryAll<{ user_id: string }>`
       SELECT user_id FROM card_members
       WHERE card_id = ${req.id}
     `;
     
-    const cardWithMembers: CardWithMembers = {
+    // Get checklists with items
+    const checklists = await tasksDB.queryAll<ChecklistWithItems>`
+      SELECT * FROM checklists
+      WHERE card_id = ${req.id}
+      ORDER BY position ASC
+    `;
+    
+    for (const checklist of checklists) {
+      const items = await tasksDB.queryAll`
+        SELECT * FROM checklist_items
+        WHERE checklist_id = ${checklist.id}
+        ORDER BY position ASC
+      `;
+      checklist.items = items;
+    }
+    
+    // Get attachments
+    const attachments = await tasksDB.queryAll<Attachment>`
+      SELECT * FROM attachments
+      WHERE card_id = ${req.id}
+      ORDER BY created_at DESC
+    `;
+    
+    // Get comments
+    const comments = await tasksDB.queryAll<Comment>`
+      SELECT * FROM comments
+      WHERE card_id = ${req.id}
+      ORDER BY created_at ASC
+    `;
+    
+    const cardWithDetails: CardWithDetails = {
       ...card,
-      members: members.map(m => m.user_id)
+      members: members.map(m => m.user_id),
+      checklists,
+      attachments,
+      comments
     };
     
-    return { card: cardWithMembers };
+    return { card: cardWithDetails };
   }
 );
 
 // Updates a card.
 export const updateCard = api<UpdateCardRequest, UpdateCardResponse>(
-  { expose: true, method: "PUT", path: "/cards/:id" },
+  { auth: true, expose: true, method: "PUT", path: "/cards/:id" },
   async (req) => {
     const updates: string[] = [];
     const values: any[] = [];
@@ -166,7 +201,7 @@ export const updateCard = api<UpdateCardRequest, UpdateCardResponse>(
 
 // Deletes a card.
 export const deleteCard = api<{ id: number }, void>(
-  { expose: true, method: "DELETE", path: "/cards/:id" },
+  { auth: true, expose: true, method: "DELETE", path: "/cards/:id" },
   async (req) => {
     await tasksDB.exec`DELETE FROM cards WHERE id = ${req.id}`;
   }
@@ -174,7 +209,7 @@ export const deleteCard = api<{ id: number }, void>(
 
 // Gets all cards due today.
 export const getTodayCards = api<void, GetTodayCardsResponse>(
-  { expose: true, method: "GET", path: "/cards/today" },
+  { auth: true, expose: true, method: "GET", path: "/cards/today" },
   async () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -203,5 +238,28 @@ export const getTodayCards = api<void, GetTodayCardsResponse>(
     }
     
     return { cards: cardsWithMembers };
+  }
+);
+
+// Adds a member to a card.
+export const addCardMember = api<{ card_id: number; user_id: string }, void>(
+  { auth: true, expose: true, method: "POST", path: "/cards/:card_id/members" },
+  async (req) => {
+    await tasksDB.exec`
+      INSERT INTO card_members (card_id, user_id)
+      VALUES (${req.card_id}, ${req.user_id})
+      ON CONFLICT (card_id, user_id) DO NOTHING
+    `;
+  }
+);
+
+// Removes a member from a card.
+export const removeCardMember = api<{ card_id: number; user_id: string }, void>(
+  { auth: true, expose: true, method: "DELETE", path: "/cards/:card_id/members/:user_id" },
+  async (req) => {
+    await tasksDB.exec`
+      DELETE FROM card_members
+      WHERE card_id = ${req.card_id} AND user_id = ${req.user_id}
+    `;
   }
 );

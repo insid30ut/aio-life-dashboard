@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Calendar, CheckSquare, DollarSign, Plus, User } from "lucide-react";
-import backend from "~backend/client";
+import { Calendar, CheckSquare, DollarSign, Plus } from "lucide-react";
+import { UserButton } from "@clerk/clerk-react";
+import { useBackend } from "../hooks/useBackend";
 import { BottomNavigation } from "./BottomNavigation";
 
 export function Homepage() {
   const navigate = useNavigate();
+  const backend = useBackend();
 
   const { data: boards } = useQuery({
     queryKey: ["boards"],
@@ -94,9 +96,13 @@ export function Homepage() {
             </h1>
             <p className="text-white/80 mt-1">{currentDate}</p>
           </div>
-          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-            <User className="w-6 h-6 text-white" />
-          </div>
+          <UserButton 
+            appearance={{
+              elements: {
+                avatarBox: "w-10 h-10"
+              }
+            }}
+          />
         </div>
       </div>
 
