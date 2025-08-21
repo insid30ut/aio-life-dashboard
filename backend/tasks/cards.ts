@@ -1,5 +1,4 @@
 import { api, APIError } from "encore.dev/api";
-import { getAuthData } from "~encore/auth";
 import { tasksDB } from "./db";
 import type { Card, CardWithMembers, CardWithDetails, ChecklistWithItems, Attachment, Comment } from "./types";
 
@@ -39,7 +38,7 @@ export interface GetTodayCardsResponse {
 
 // Creates a new card in a list.
 export const createCard = api<CreateCardRequest, CreateCardResponse>(
-  { auth: true, expose: true, method: "POST", path: "/cards" },
+  { expose: true, method: "POST", path: "/cards" },
   async (req) => {
     // Get the next position
     const maxPosition = await tasksDB.queryRow<{ max_position: number | null }>`
@@ -70,7 +69,7 @@ export const createCard = api<CreateCardRequest, CreateCardResponse>(
 
 // Gets a specific card with all its details.
 export const getCard = api<{ id: number }, GetCardResponse>(
-  { auth: true, expose: true, method: "GET", path: "/cards/:id" },
+  { expose: true, method: "GET", path: "/cards/:id" },
   async (req) => {
     const card = await tasksDB.queryRow<Card>`
       SELECT * FROM cards WHERE id = ${req.id}
@@ -130,7 +129,7 @@ export const getCard = api<{ id: number }, GetCardResponse>(
 
 // Updates a card.
 export const updateCard = api<UpdateCardRequest, UpdateCardResponse>(
-  { auth: true, expose: true, method: "PUT", path: "/cards/:id" },
+  { expose: true, method: "PUT", path: "/cards/:id" },
   async (req) => {
     const updates: string[] = [];
     const values: any[] = [];
@@ -201,7 +200,7 @@ export const updateCard = api<UpdateCardRequest, UpdateCardResponse>(
 
 // Deletes a card.
 export const deleteCard = api<{ id: number }, void>(
-  { auth: true, expose: true, method: "DELETE", path: "/cards/:id" },
+  { expose: true, method: "DELETE", path: "/cards/:id" },
   async (req) => {
     await tasksDB.exec`DELETE FROM cards WHERE id = ${req.id}`;
   }
@@ -209,7 +208,7 @@ export const deleteCard = api<{ id: number }, void>(
 
 // Gets all cards due today.
 export const getTodayCards = api<void, GetTodayCardsResponse>(
-  { auth: true, expose: true, method: "GET", path: "/cards/today" },
+  { expose: true, method: "GET", path: "/cards/today" },
   async () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -243,7 +242,7 @@ export const getTodayCards = api<void, GetTodayCardsResponse>(
 
 // Adds a member to a card.
 export const addCardMember = api<{ card_id: number; user_id: string }, void>(
-  { auth: true, expose: true, method: "POST", path: "/cards/:card_id/members" },
+  { expose: true, method: "POST", path: "/cards/:card_id/members" },
   async (req) => {
     await tasksDB.exec`
       INSERT INTO card_members (card_id, user_id)
@@ -255,7 +254,7 @@ export const addCardMember = api<{ card_id: number; user_id: string }, void>(
 
 // Removes a member from a card.
 export const removeCardMember = api<{ card_id: number; user_id: string }, void>(
-  { auth: true, expose: true, method: "DELETE", path: "/cards/:card_id/members/:user_id" },
+  { expose: true, method: "DELETE", path: "/cards/:card_id/members/:user_id" },
   async (req) => {
     await tasksDB.exec`
       DELETE FROM card_members

@@ -1,5 +1,4 @@
 import { api, APIError } from "encore.dev/api";
-import { getAuthData } from "~encore/auth";
 import { shoppingDB } from "./db";
 import type { ShoppingItem } from "./types";
 
@@ -34,14 +33,12 @@ export interface AddItemsResponse {
 
 // Creates a new shopping item.
 export const createItem = api<CreateItemRequest, CreateItemResponse>(
-  { auth: true, expose: true, method: "POST", path: "/shopping/items" },
+  { expose: true, method: "POST", path: "/shopping/items" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     // Verify the list belongs to the user
     const list = await shoppingDB.queryRow<{ id: number }>`
       SELECT id FROM shopping_lists
-      WHERE id = ${req.list_id} AND user_id = ${auth.userID}
+      WHERE id = ${req.list_id} AND user_id = ${'anonymous'}
     `;
     
     if (!list) {
@@ -72,10 +69,8 @@ export const createItem = api<CreateItemRequest, CreateItemResponse>(
 
 // Updates a shopping item.
 export const updateItem = api<UpdateItemRequest, UpdateItemResponse>(
-  { auth: true, expose: true, method: "PUT", path: "/shopping/items/:id" },
+  { expose: true, method: "PUT", path: "/shopping/items/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -109,7 +104,7 @@ export const updateItem = api<UpdateItemRequest, UpdateItemResponse>(
         )
       RETURNING *
     `;
-    values.push(req.id, auth.userID);
+    values.push(req.id, 'anonymous');
     
     const item = await shoppingDB.rawQueryRow<ShoppingItem>(query, ...values);
     
@@ -123,15 +118,13 @@ export const updateItem = api<UpdateItemRequest, UpdateItemResponse>(
 
 // Deletes a shopping item.
 export const deleteItem = api<{ id: number }, void>(
-  { auth: true, expose: true, method: "DELETE", path: "/shopping/items/:id" },
+  { expose: true, method: "DELETE", path: "/shopping/items/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     await shoppingDB.exec`
       DELETE FROM shopping_items
       WHERE id = ${req.id}
         AND list_id IN (
-          SELECT id FROM shopping_lists WHERE user_id = ${auth.userID}
+          SELECT id FROM shopping_lists WHERE user_id = ${'anonymous'}
         )
     `;
   }
@@ -139,14 +132,12 @@ export const deleteItem = api<{ id: number }, void>(
 
 // Adds multiple items to a shopping list.
 export const addItems = api<AddItemsRequest, AddItemsResponse>(
-  { auth: true, expose: true, method: "POST", path: "/shopping/lists/:list_id/items/bulk" },
+  { expose: true, method: "POST", path: "/shopping/lists/:list_id/items/bulk" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     // Verify the list belongs to the user
     const list = await shoppingDB.queryRow<{ id: number }>`
       SELECT id FROM shopping_lists
-      WHERE id = ${req.list_id} AND user_id = ${auth.userID}
+      WHERE id = ${req.list_id} AND user_id = ${'anonymous'}
     `;
     
     if (!list) {
@@ -181,14 +172,12 @@ export const addItems = api<AddItemsRequest, AddItemsResponse>(
 
 // Unchecks all items in a shopping list.
 export const uncheckAllItems = api<{ list_id: number }, void>(
-  { auth: true, expose: true, method: "POST", path: "/shopping/lists/:list_id/uncheck-all" },
+  { expose: true, method: "POST", path: "/shopping/lists/:list_id/uncheck-all" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     // Verify the list belongs to the user
     const list = await shoppingDB.queryRow<{ id: number }>`
       SELECT id FROM shopping_lists
-      WHERE id = ${req.list_id} AND user_id = ${auth.userID}
+      WHERE id = ${req.list_id} AND user_id = ${'anonymous'}
     `;
     
     if (!list) {

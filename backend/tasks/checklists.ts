@@ -1,5 +1,4 @@
 import { api, APIError } from "encore.dev/api";
-import { getAuthData } from "~encore/auth";
 import { tasksDB } from "./db";
 import type { Checklist, ChecklistItem, ChecklistWithItems } from "./types";
 
@@ -44,7 +43,7 @@ export interface UpdateChecklistItemResponse {
 
 // Creates a new checklist for a card.
 export const createChecklist = api<CreateChecklistRequest, CreateChecklistResponse>(
-  { auth: true, expose: true, method: "POST", path: "/checklists" },
+  { expose: true, method: "POST", path: "/checklists" },
   async (req) => {
     // Get the next position
     const maxPosition = await tasksDB.queryRow<{ max_position: number | null }>`
@@ -75,7 +74,7 @@ export const createChecklist = api<CreateChecklistRequest, CreateChecklistRespon
 
 // Updates a checklist.
 export const updateChecklist = api<UpdateChecklistRequest, UpdateChecklistResponse>(
-  { auth: true, expose: true, method: "PUT", path: "/checklists/:id" },
+  { expose: true, method: "PUT", path: "/checklists/:id" },
   async (req) => {
     const updates: string[] = [];
     const values: any[] = [];
@@ -116,7 +115,7 @@ export const updateChecklist = api<UpdateChecklistRequest, UpdateChecklistRespon
 
 // Deletes a checklist.
 export const deleteChecklist = api<{ id: number }, void>(
-  { auth: true, expose: true, method: "DELETE", path: "/checklists/:id" },
+  { expose: true, method: "DELETE", path: "/checklists/:id" },
   async (req) => {
     await tasksDB.exec`DELETE FROM checklists WHERE id = ${req.id}`;
   }
@@ -124,7 +123,7 @@ export const deleteChecklist = api<{ id: number }, void>(
 
 // Creates a new checklist item.
 export const createChecklistItem = api<CreateChecklistItemRequest, CreateChecklistItemResponse>(
-  { auth: true, expose: true, method: "POST", path: "/checklist-items" },
+  { expose: true, method: "POST", path: "/checklist-items" },
   async (req) => {
     // Get the next position
     const maxPosition = await tasksDB.queryRow<{ max_position: number | null }>`
@@ -150,7 +149,7 @@ export const createChecklistItem = api<CreateChecklistItemRequest, CreateCheckli
 
 // Updates a checklist item.
 export const updateChecklistItem = api<UpdateChecklistItemRequest, UpdateChecklistItemResponse>(
-  { auth: true, expose: true, method: "PUT", path: "/checklist-items/:id" },
+  { expose: true, method: "PUT", path: "/checklist-items/:id" },
   async (req) => {
     const updates: string[] = [];
     const values: any[] = [];
@@ -196,7 +195,7 @@ export const updateChecklistItem = api<UpdateChecklistItemRequest, UpdateCheckli
 
 // Deletes a checklist item.
 export const deleteChecklistItem = api<{ id: number }, void>(
-  { auth: true, expose: true, method: "DELETE", path: "/checklist-items/:id" },
+  { expose: true, method: "DELETE", path: "/checklist-items/:id" },
   async (req) => {
     await tasksDB.exec`DELETE FROM checklist_items WHERE id = ${req.id}`;
   }

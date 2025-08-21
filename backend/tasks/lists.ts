@@ -1,5 +1,4 @@
 import { api, APIError } from "encore.dev/api";
-import { getAuthData } from "~encore/auth";
 import { tasksDB } from "./db";
 import type { List } from "./types";
 
@@ -24,7 +23,7 @@ export interface UpdateListResponse {
 
 // Creates a new list in a board.
 export const createList = api<CreateListRequest, CreateListResponse>(
-  { auth: true, expose: true, method: "POST", path: "/lists" },
+  { expose: true, method: "POST", path: "/lists" },
   async (req) => {
     // Get the next position
     const maxPosition = await tasksDB.queryRow<{ max_position: number | null }>`
@@ -50,7 +49,7 @@ export const createList = api<CreateListRequest, CreateListResponse>(
 
 // Updates a list.
 export const updateList = api<UpdateListRequest, UpdateListResponse>(
-  { auth: true, expose: true, method: "PUT", path: "/lists/:id" },
+  { expose: true, method: "PUT", path: "/lists/:id" },
   async (req) => {
     const updates: string[] = [];
     const values: any[] = [];
@@ -91,7 +90,7 @@ export const updateList = api<UpdateListRequest, UpdateListResponse>(
 
 // Deletes a list.
 export const deleteList = api<{ id: number }, void>(
-  { auth: true, expose: true, method: "DELETE", path: "/lists/:id" },
+  { expose: true, method: "DELETE", path: "/lists/:id" },
   async (req) => {
     await tasksDB.exec`DELETE FROM lists WHERE id = ${req.id}`;
   }

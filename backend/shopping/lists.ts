@@ -1,5 +1,4 @@
 import { api, APIError } from "encore.dev/api";
-import { getAuthData } from "~encore/auth";
 import { shoppingDB } from "./db";
 import type { ShoppingList, ShoppingListWithItems, ShoppingItem } from "./types";
 
@@ -30,13 +29,11 @@ export interface UpdateListResponse {
 
 // Creates a new shopping list.
 export const createList = api<CreateListRequest, CreateListResponse>(
-  { auth: true, expose: true, method: "POST", path: "/shopping/lists" },
+  { expose: true, method: "POST", path: "/shopping/lists" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     const list = await shoppingDB.queryRow<ShoppingList>`
       INSERT INTO shopping_lists (title, user_id)
-      VALUES (${req.title}, ${auth.userID})
+      VALUES (${req.title}, ${'anonymous'})
       RETURNING *
     `;
     
@@ -50,13 +47,11 @@ export const createList = api<CreateListRequest, CreateListResponse>(
 
 // Gets all shopping lists for the current user.
 export const getLists = api<void, GetListsResponse>(
-  { auth: true, expose: true, method: "GET", path: "/shopping/lists" },
+  { expose: true, method: "GET", path: "/shopping/lists" },
   async () => {
-    const auth = getAuthData()!;
-    
     const lists = await shoppingDB.queryAll<ShoppingList>`
       SELECT * FROM shopping_lists
-      WHERE user_id = ${auth.userID}
+      WHERE user_id = ${'anonymous'}
       ORDER BY updated_at DESC
     `;
     
@@ -66,13 +61,11 @@ export const getLists = api<void, GetListsResponse>(
 
 // Gets a specific shopping list with all its items.
 export const getList = api<{ id: number }, GetListResponse>(
-  { auth: true, expose: true, method: "GET", path: "/shopping/lists/:id" },
+  { expose: true, method: "GET", path: "/shopping/lists/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     const list = await shoppingDB.queryRow<ShoppingList>`
       SELECT * FROM shopping_lists
-      WHERE id = ${req.id} AND user_id = ${auth.userID}
+      WHERE id = ${req.id} AND user_id = ${'anonymous'}
     `;
     
     if (!list) {
@@ -96,14 +89,12 @@ export const getList = api<{ id: number }, GetListResponse>(
 
 // Updates a shopping list.
 export const updateList = api<UpdateListRequest, UpdateListResponse>(
-  { auth: true, expose: true, method: "PUT", path: "/shopping/lists/:id" },
+  { expose: true, method: "PUT", path: "/shopping/lists/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     const list = await shoppingDB.queryRow<ShoppingList>`
       UPDATE shopping_lists
       SET title = ${req.title}, updated_at = NOW()
-      WHERE id = ${req.id} AND user_id = ${auth.userID}
+      WHERE id = ${req.id} AND user_id = ${'anonymous'}
       RETURNING *
     `;
     
@@ -117,13 +108,11 @@ export const updateList = api<UpdateListRequest, UpdateListResponse>(
 
 // Deletes a shopping list.
 export const deleteList = api<{ id: number }, void>(
-  { auth: true, expose: true, method: "DELETE", path: "/shopping/lists/:id" },
+  { expose: true, method: "DELETE", path: "/shopping/lists/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     await shoppingDB.exec`
       DELETE FROM shopping_lists
-      WHERE id = ${req.id} AND user_id = ${auth.userID}
+      WHERE id = ${req.id} AND user_id = ${'anonymous'}
     `;
   }
 );

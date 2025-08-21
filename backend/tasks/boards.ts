@@ -1,5 +1,4 @@
 import { api, APIError } from "encore.dev/api";
-import { getAuthData } from "~encore/auth";
 import { tasksDB } from "./db";
 import type { Board, BoardWithLists, ListWithCards, CardWithMembers } from "./types";
 
@@ -22,7 +21,7 @@ export interface GetBoardResponse {
 
 // Creates a new board.
 export const createBoard = api<CreateBoardRequest, CreateBoardResponse>(
-  { auth: true, expose: true, method: "POST", path: "/boards" },
+  { expose: true, method: "POST", path: "/boards" },
   async (req) => {
     const board = await tasksDB.queryRow<Board>`
       INSERT INTO boards (title, background)
@@ -40,7 +39,7 @@ export const createBoard = api<CreateBoardRequest, CreateBoardResponse>(
 
 // Lists all boards.
 export const listBoards = api<void, ListBoardsResponse>(
-  { auth: true, expose: true, method: "GET", path: "/boards" },
+  { expose: true, method: "GET", path: "/boards" },
   async () => {
     const boards = await tasksDB.queryAll<Board>`
       SELECT * FROM boards
@@ -53,7 +52,7 @@ export const listBoards = api<void, ListBoardsResponse>(
 
 // Gets a specific board with all its lists and cards.
 export const getBoard = api<{ id: number }, GetBoardResponse>(
-  { auth: true, expose: true, method: "GET", path: "/boards/:id" },
+  { expose: true, method: "GET", path: "/boards/:id" },
   async (req) => {
     const board = await tasksDB.queryRow<Board>`
       SELECT * FROM boards WHERE id = ${req.id}

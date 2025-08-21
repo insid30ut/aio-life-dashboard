@@ -1,5 +1,4 @@
 import { api, APIError } from "encore.dev/api";
-import { getAuthData } from "~encore/auth";
 import { tasksDB } from "./db";
 import type { Attachment } from "./types";
 
@@ -21,7 +20,7 @@ export interface GetCardAttachmentsResponse {
 
 // Creates a new attachment for a card.
 export const createAttachment = api<CreateAttachmentRequest, CreateAttachmentResponse>(
-  { auth: true, expose: true, method: "POST", path: "/attachments" },
+  { expose: true, method: "POST", path: "/attachments" },
   async (req) => {
     const attachment = await tasksDB.queryRow<Attachment>`
       INSERT INTO attachments (name, url, size_bytes, mime_type, card_id)
@@ -39,7 +38,7 @@ export const createAttachment = api<CreateAttachmentRequest, CreateAttachmentRes
 
 // Deletes an attachment.
 export const deleteAttachment = api<{ id: number }, void>(
-  { auth: true, expose: true, method: "DELETE", path: "/attachments/:id" },
+  { expose: true, method: "DELETE", path: "/attachments/:id" },
   async (req) => {
     await tasksDB.exec`DELETE FROM attachments WHERE id = ${req.id}`;
   }
@@ -47,7 +46,7 @@ export const deleteAttachment = api<{ id: number }, void>(
 
 // Gets all attachments for a card.
 export const getCardAttachments = api<{ card_id: number }, GetCardAttachmentsResponse>(
-  { auth: true, expose: true, method: "GET", path: "/cards/:card_id/attachments" },
+  { expose: true, method: "GET", path: "/cards/:card_id/attachments" },
   async (req) => {
     const attachments = await tasksDB.queryAll<Attachment>`
       SELECT * FROM attachments

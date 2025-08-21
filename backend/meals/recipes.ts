@@ -1,5 +1,4 @@
 import { api, APIError } from "encore.dev/api";
-import { getAuthData } from "~encore/auth";
 import { mealsDB } from "./db";
 import type { Recipe, RecipeIngredient, RecipeWithIngredients } from "./types";
 
@@ -34,13 +33,11 @@ export interface UpdateRecipeResponse {
 
 // Creates a new recipe.
 export const createRecipe = api<CreateRecipeRequest, CreateRecipeResponse>(
-  { auth: true, expose: true, method: "POST", path: "/recipes" },
+  { expose: true, method: "POST", path: "/recipes" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     const recipe = await mealsDB.queryRow<Recipe>`
       INSERT INTO recipes (name, instructions, user_id)
-      VALUES (${req.name}, ${req.instructions}, ${auth.userID})
+      VALUES (${req.name}, ${req.instructions}, ${'anonymous'})
       RETURNING *
     `;
     
@@ -72,13 +69,11 @@ export const createRecipe = api<CreateRecipeRequest, CreateRecipeResponse>(
 
 // Gets all recipes for the current user.
 export const getRecipes = api<void, GetRecipesResponse>(
-  { auth: true, expose: true, method: "GET", path: "/recipes" },
+  { expose: true, method: "GET", path: "/recipes" },
   async () => {
-    const auth = getAuthData()!;
-    
     const recipes = await mealsDB.queryAll<Recipe>`
       SELECT * FROM recipes
-      WHERE user_id = ${auth.userID}
+      WHERE user_id = ${'anonymous'}
       ORDER BY name ASC
     `;
     
@@ -88,13 +83,11 @@ export const getRecipes = api<void, GetRecipesResponse>(
 
 // Gets a specific recipe with ingredients.
 export const getRecipe = api<{ id: number }, GetRecipeResponse>(
-  { auth: true, expose: true, method: "GET", path: "/recipes/:id" },
+  { expose: true, method: "GET", path: "/recipes/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     const recipe = await mealsDB.queryRow<Recipe>`
       SELECT * FROM recipes
-      WHERE id = ${req.id} AND user_id = ${auth.userID}
+      WHERE id = ${req.id} AND user_id = ${'anonymous'}
     `;
     
     if (!recipe) {
@@ -118,10 +111,8 @@ export const getRecipe = api<{ id: number }, GetRecipeResponse>(
 
 // Updates a recipe.
 export const updateRecipe = api<UpdateRecipeRequest, UpdateRecipeResponse>(
-  { auth: true, expose: true, method: "PUT", path: "/recipes/:id" },
+  { expose: true, method: "PUT", path: "/recipes/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -144,7 +135,7 @@ export const updateRecipe = api<UpdateRecipeRequest, UpdateRecipeResponse>(
         WHERE id = $${values.length + 1} AND user_id = $${values.length + 2}
         RETURNING *
       `;
-      values.push(req.id, auth.userID);
+      values.push(req.id, 'anonymous');
       
       const recipe = await mealsDB.rawQueryRow<Recipe>(query, ...values);
       
@@ -174,7 +165,7 @@ export const updateRecipe = api<UpdateRecipeRequest, UpdateRecipeResponse>(
     // Get the updated recipe with ingredients
     const recipe = await mealsDB.queryRow<Recipe>`
       SELECT * FROM recipes
-      WHERE id = ${req.id} AND user_id = ${auth.userID}
+      WHERE id = ${req.id} AND user_id = ${'anonymous'}
     `;
     
     if (!recipe) {
@@ -198,13 +189,11 @@ export const updateRecipe = api<UpdateRecipeRequest, UpdateRecipeResponse>(
 
 // Deletes a recipe.
 export const deleteRecipe = api<{ id: number }, void>(
-  { auth: true, expose: true, method: "DELETE", path: "/recipes/:id" },
+  { expose: true, method: "DELETE", path: "/recipes/:id" },
   async (req) => {
-    const auth = getAuthData()!;
-    
     await mealsDB.exec`
       DELETE FROM recipes
-      WHERE id = ${req.id} AND user_id = ${auth.userID}
+      WHERE id = ${req.id} AND user_id = ${'anonymous'}
     `;
   }
 );
