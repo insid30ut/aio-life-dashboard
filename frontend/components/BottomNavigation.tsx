@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, CheckSquare, ShoppingCart, ChefHat } from "lucide-react";
+import { Home, CheckSquare, ShoppingCart, ChefHat, DollarSign, Calendar, Target, BookOpen } from "lucide-react";
 
 export function BottomNavigation() {
   const navigate = useNavigate();
@@ -12,10 +12,20 @@ export function BottomNavigation() {
     { icon: ChefHat, label: "Meals", path: "/meals" },
   ];
 
+  const secondaryItems = [
+    { icon: DollarSign, label: "Budget", path: "/budget" },
+    { icon: Calendar, label: "Calendar", path: "/calendar" },
+    { icon: Target, label: "Goals", path: "/goals" },
+    { icon: BookOpen, label: "Journal", path: "/journal" },
+  ];
+
+  // Show secondary nav on larger screens
+  const allItems = window.innerWidth >= 768 ? [...navItems, ...secondaryItems] : navItems;
+
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 h-20">
       <div className="flex items-center justify-around h-full px-4">
-        {navItems.map((item) => {
+        {allItems.map((item) => {
           const isActive = location.pathname === item.path || 
             (item.path !== "/" && location.pathname.startsWith(item.path));
           

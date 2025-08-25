@@ -33,6 +33,10 @@ const BROWSER = typeof globalThis === "object" && ("window" in globalThis);
  * Client is an API client for the  Encore application.
  */
 export class Client {
+    public readonly budget: budget.ServiceClient
+    public readonly calendar: calendar.ServiceClient
+    public readonly goals: goals.ServiceClient
+    public readonly journal: journal.ServiceClient
     public readonly meals: meals.ServiceClient
     public readonly shopping: shopping.ServiceClient
     public readonly tasks: tasks.ServiceClient
@@ -50,6 +54,10 @@ export class Client {
         this.target = target
         this.options = options ?? {}
         const base = new BaseClient(this.target, this.options)
+        this.budget = new budget.ServiceClient(base)
+        this.calendar = new calendar.ServiceClient(base)
+        this.goals = new goals.ServiceClient(base)
+        this.journal = new journal.ServiceClient(base)
         this.meals = new meals.ServiceClient(base)
         this.shopping = new shopping.ServiceClient(base)
         this.tasks = new tasks.ServiceClient(base)
@@ -81,6 +89,371 @@ export interface ClientOptions {
 
     /** Default RequestInit to be used for the client */
     requestInit?: Omit<RequestInit, "headers"> & { headers?: Record<string, string> }
+}
+
+/**
+ * Import the endpoint handlers to derive the types for the client.
+ */
+import {
+    createCategory as api_budget_categories_createCategory,
+    deleteCategory as api_budget_categories_deleteCategory,
+    getCategories as api_budget_categories_getCategories,
+    updateCategory as api_budget_categories_updateCategory
+} from "~backend/budget/categories";
+import {
+    createTransaction as api_budget_transactions_createTransaction,
+    deleteTransaction as api_budget_transactions_deleteTransaction,
+    getSummary as api_budget_transactions_getSummary,
+    getTransactions as api_budget_transactions_getTransactions,
+    updateTransaction as api_budget_transactions_updateTransaction
+} from "~backend/budget/transactions";
+
+export namespace budget {
+
+    export class ServiceClient {
+        private baseClient: BaseClient
+
+        constructor(baseClient: BaseClient) {
+            this.baseClient = baseClient
+            this.createCategory = this.createCategory.bind(this)
+            this.createTransaction = this.createTransaction.bind(this)
+            this.deleteCategory = this.deleteCategory.bind(this)
+            this.deleteTransaction = this.deleteTransaction.bind(this)
+            this.getCategories = this.getCategories.bind(this)
+            this.getSummary = this.getSummary.bind(this)
+            this.getTransactions = this.getTransactions.bind(this)
+            this.updateCategory = this.updateCategory.bind(this)
+            this.updateTransaction = this.updateTransaction.bind(this)
+        }
+
+        /**
+         * Creates a new budget category.
+         */
+        public async createCategory(params: RequestType<typeof api_budget_categories_createCategory>): Promise<ResponseType<typeof api_budget_categories_createCategory>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/budget/categories`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_budget_categories_createCategory>
+        }
+
+        /**
+         * Creates a new transaction.
+         */
+        public async createTransaction(params: RequestType<typeof api_budget_transactions_createTransaction>): Promise<ResponseType<typeof api_budget_transactions_createTransaction>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/budget/transactions`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_budget_transactions_createTransaction>
+        }
+
+        /**
+         * Deletes a budget category.
+         */
+        public async deleteCategory(params: { id: number }): Promise<void> {
+            await this.baseClient.callTypedAPI(`/budget/categories/${encodeURIComponent(params.id)}`, {method: "DELETE", body: undefined})
+        }
+
+        /**
+         * Deletes a transaction.
+         */
+        public async deleteTransaction(params: { id: number }): Promise<void> {
+            await this.baseClient.callTypedAPI(`/budget/transactions/${encodeURIComponent(params.id)}`, {method: "DELETE", body: undefined})
+        }
+
+        /**
+         * Gets all budget categories for the current user.
+         */
+        public async getCategories(): Promise<ResponseType<typeof api_budget_categories_getCategories>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/budget/categories`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_budget_categories_getCategories>
+        }
+
+        /**
+         * Gets budget summary for the current user.
+         */
+        public async getSummary(): Promise<ResponseType<typeof api_budget_transactions_getSummary>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/budget/summary`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_budget_transactions_getSummary>
+        }
+
+        /**
+         * Gets all transactions for the current user.
+         */
+        public async getTransactions(): Promise<ResponseType<typeof api_budget_transactions_getTransactions>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/budget/transactions`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_budget_transactions_getTransactions>
+        }
+
+        /**
+         * Updates a budget category.
+         */
+        public async updateCategory(params: RequestType<typeof api_budget_categories_updateCategory>): Promise<ResponseType<typeof api_budget_categories_updateCategory>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                name: params.name,
+                type: params.type,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/budget/categories/${encodeURIComponent(params.id)}`, {method: "PUT", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_budget_categories_updateCategory>
+        }
+
+        /**
+         * Updates a transaction.
+         */
+        public async updateTransaction(params: RequestType<typeof api_budget_transactions_updateTransaction>): Promise<ResponseType<typeof api_budget_transactions_updateTransaction>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                amount:        params.amount,
+                "category_id": params["category_id"],
+                date:          params.date,
+                description:   params.description,
+                type:          params.type,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/budget/transactions/${encodeURIComponent(params.id)}`, {method: "PUT", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_budget_transactions_updateTransaction>
+        }
+    }
+}
+
+/**
+ * Import the endpoint handlers to derive the types for the client.
+ */
+import {
+    createEvent as api_calendar_events_createEvent,
+    deleteEvent as api_calendar_events_deleteEvent,
+    getEvent as api_calendar_events_getEvent,
+    getEvents as api_calendar_events_getEvents,
+    updateEvent as api_calendar_events_updateEvent
+} from "~backend/calendar/events";
+
+export namespace calendar {
+
+    export class ServiceClient {
+        private baseClient: BaseClient
+
+        constructor(baseClient: BaseClient) {
+            this.baseClient = baseClient
+            this.createEvent = this.createEvent.bind(this)
+            this.deleteEvent = this.deleteEvent.bind(this)
+            this.getEvent = this.getEvent.bind(this)
+            this.getEvents = this.getEvents.bind(this)
+            this.updateEvent = this.updateEvent.bind(this)
+        }
+
+        /**
+         * Creates a new calendar event.
+         */
+        public async createEvent(params: RequestType<typeof api_calendar_events_createEvent>): Promise<ResponseType<typeof api_calendar_events_createEvent>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/calendar/events`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_calendar_events_createEvent>
+        }
+
+        /**
+         * Deletes an event.
+         */
+        public async deleteEvent(params: { id: number }): Promise<void> {
+            await this.baseClient.callTypedAPI(`/calendar/events/${encodeURIComponent(params.id)}`, {method: "DELETE", body: undefined})
+        }
+
+        /**
+         * Gets a specific event.
+         */
+        public async getEvent(params: { id: number }): Promise<ResponseType<typeof api_calendar_events_getEvent>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/calendar/events/${encodeURIComponent(params.id)}`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_calendar_events_getEvent>
+        }
+
+        /**
+         * Gets all events for the current user.
+         */
+        public async getEvents(): Promise<ResponseType<typeof api_calendar_events_getEvents>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/calendar/events`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_calendar_events_getEvents>
+        }
+
+        /**
+         * Updates an event.
+         */
+        public async updateEvent(params: RequestType<typeof api_calendar_events_updateEvent>): Promise<ResponseType<typeof api_calendar_events_updateEvent>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                date:        params.date,
+                description: params.description,
+                title:       params.title,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/calendar/events/${encodeURIComponent(params.id)}`, {method: "PUT", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_calendar_events_updateEvent>
+        }
+    }
+}
+
+/**
+ * Import the endpoint handlers to derive the types for the client.
+ */
+import {
+    createGoal as api_goals_goals_createGoal,
+    deleteGoal as api_goals_goals_deleteGoal,
+    getGoal as api_goals_goals_getGoal,
+    getGoals as api_goals_goals_getGoals,
+    updateGoal as api_goals_goals_updateGoal
+} from "~backend/goals/goals";
+
+export namespace goals {
+
+    export class ServiceClient {
+        private baseClient: BaseClient
+
+        constructor(baseClient: BaseClient) {
+            this.baseClient = baseClient
+            this.createGoal = this.createGoal.bind(this)
+            this.deleteGoal = this.deleteGoal.bind(this)
+            this.getGoal = this.getGoal.bind(this)
+            this.getGoals = this.getGoals.bind(this)
+            this.updateGoal = this.updateGoal.bind(this)
+        }
+
+        /**
+         * Creates a new goal.
+         */
+        public async createGoal(params: RequestType<typeof api_goals_goals_createGoal>): Promise<ResponseType<typeof api_goals_goals_createGoal>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/goals`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_goals_goals_createGoal>
+        }
+
+        /**
+         * Deletes a goal.
+         */
+        public async deleteGoal(params: { id: number }): Promise<void> {
+            await this.baseClient.callTypedAPI(`/goals/${encodeURIComponent(params.id)}`, {method: "DELETE", body: undefined})
+        }
+
+        /**
+         * Gets a specific goal.
+         */
+        public async getGoal(params: { id: number }): Promise<ResponseType<typeof api_goals_goals_getGoal>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/goals/${encodeURIComponent(params.id)}`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_goals_goals_getGoal>
+        }
+
+        /**
+         * Gets all goals for the current user.
+         */
+        public async getGoals(): Promise<ResponseType<typeof api_goals_goals_getGoals>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/goals`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_goals_goals_getGoals>
+        }
+
+        /**
+         * Updates a goal.
+         */
+        public async updateGoal(params: RequestType<typeof api_goals_goals_updateGoal>): Promise<ResponseType<typeof api_goals_goals_updateGoal>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                "current_value": params["current_value"],
+                description:     params.description,
+                status:          params.status,
+                "target_date":   params["target_date"],
+                "target_value":  params["target_value"],
+                title:           params.title,
+                unit:            params.unit,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/goals/${encodeURIComponent(params.id)}`, {method: "PUT", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_goals_goals_updateGoal>
+        }
+    }
+}
+
+/**
+ * Import the endpoint handlers to derive the types for the client.
+ */
+import {
+    createEntry as api_journal_entries_createEntry,
+    deleteEntry as api_journal_entries_deleteEntry,
+    getEntries as api_journal_entries_getEntries,
+    getEntry as api_journal_entries_getEntry,
+    updateEntry as api_journal_entries_updateEntry
+} from "~backend/journal/entries";
+
+export namespace journal {
+
+    export class ServiceClient {
+        private baseClient: BaseClient
+
+        constructor(baseClient: BaseClient) {
+            this.baseClient = baseClient
+            this.createEntry = this.createEntry.bind(this)
+            this.deleteEntry = this.deleteEntry.bind(this)
+            this.getEntries = this.getEntries.bind(this)
+            this.getEntry = this.getEntry.bind(this)
+            this.updateEntry = this.updateEntry.bind(this)
+        }
+
+        /**
+         * Creates a new journal entry.
+         */
+        public async createEntry(params: RequestType<typeof api_journal_entries_createEntry>): Promise<ResponseType<typeof api_journal_entries_createEntry>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/journal/entries`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_journal_entries_createEntry>
+        }
+
+        /**
+         * Deletes a journal entry.
+         */
+        public async deleteEntry(params: { id: number }): Promise<void> {
+            await this.baseClient.callTypedAPI(`/journal/entries/${encodeURIComponent(params.id)}`, {method: "DELETE", body: undefined})
+        }
+
+        /**
+         * Gets all journal entries for the current user.
+         */
+        public async getEntries(): Promise<ResponseType<typeof api_journal_entries_getEntries>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/journal/entries`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_journal_entries_getEntries>
+        }
+
+        /**
+         * Gets a specific journal entry.
+         */
+        public async getEntry(params: { id: number }): Promise<ResponseType<typeof api_journal_entries_getEntry>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/journal/entries/${encodeURIComponent(params.id)}`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_journal_entries_getEntry>
+        }
+
+        /**
+         * Updates a journal entry.
+         */
+        public async updateEntry(params: RequestType<typeof api_journal_entries_updateEntry>): Promise<ResponseType<typeof api_journal_entries_updateEntry>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                content: params.content,
+                date:    params.date,
+                mood:    params.mood,
+                title:   params.title,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/journal/entries/${encodeURIComponent(params.id)}`, {method: "PUT", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_journal_entries_updateEntry>
+        }
+    }
 }
 
 /**

@@ -23,6 +23,11 @@ export function Homepage() {
     queryFn: () => backend.shopping.getLists(),
   });
 
+  const { data: recipes } = useQuery({
+    queryKey: ["recipes"],
+    queryFn: () => backend.meals.getRecipes(),
+  });
+
   const currentDate = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -46,11 +51,11 @@ export function Homepage() {
       textColor: "text-green-600",
     },
     {
-      title: "Budget",
-      value: "$0",
-      color: "border-purple-500",
-      bgColor: "bg-purple-50",
-      textColor: "text-purple-600",
+      title: "Recipes",
+      value: recipes?.recipes?.length || 0,
+      color: "border-orange-500",
+      bgColor: "bg-orange-50",
+      textColor: "text-orange-600",
     },
   ];
 
@@ -72,6 +77,14 @@ export function Homepage() {
       onClick: () => navigate("/shopping"),
     },
     {
+      title: "Meal Planner",
+      description: "Plan your weekly meals and recipes",
+      icon: ChefHat,
+      color: "border-l-orange-500",
+      bgColor: "bg-orange-50",
+      onClick: () => navigate("/meals"),
+    },
+    {
       title: "Budget Tracker",
       description: "Track your expenses and income",
       icon: DollarSign,
@@ -79,31 +92,23 @@ export function Homepage() {
       bgColor: "bg-purple-50",
       onClick: () => navigate("/budget"),
     },
-    {
-      title: "Calendar",
-      description: "Manage your schedule and events",
-      icon: Calendar,
-      color: "border-l-orange-500",
-      bgColor: "bg-orange-50",
-      onClick: () => navigate("/calendar"),
-    },
   ];
 
   const secondaryFeatures = [
     {
-      title: "Meal Planner",
-      description: "Plan your weekly meals and recipes",
-      icon: ChefHat,
-      color: "border-l-teal-500",
-      bgColor: "bg-teal-50",
-      onClick: () => navigate("/meals"),
+      title: "Calendar",
+      description: "Manage your schedule and events",
+      icon: Calendar,
+      color: "border-l-indigo-500",
+      bgColor: "bg-indigo-50",
+      onClick: () => navigate("/calendar"),
     },
     {
       title: "Goals Tracker",
-      description: "Track your shared goals and milestones",
+      description: "Track your personal goals and milestones",
       icon: Target,
-      color: "border-l-indigo-500",
-      bgColor: "bg-indigo-50",
+      color: "border-l-teal-500",
+      bgColor: "bg-teal-50",
       onClick: () => navigate("/goals"),
     },
     {

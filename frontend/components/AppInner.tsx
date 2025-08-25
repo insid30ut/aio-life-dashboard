@@ -7,7 +7,10 @@ import { ShoppingModule } from "./shopping/ShoppingModule";
 import { ShoppingListDetail } from "./shopping/ShoppingListDetail";
 import { MealPlannerModule } from "./meals/MealPlannerModule";
 import { RecipeDetail } from "./meals/RecipeDetail";
-import { ComingSoon } from "./ComingSoon";
+import { BudgetModule } from "./budget/BudgetModule";
+import { CalendarModule } from "./calendar/CalendarModule";
+import { GoalsModule } from "./goals/GoalsModule";
+import { JournalModule } from "./journal/JournalModule";
 
 export function AppInner() {
   return (
@@ -20,10 +23,10 @@ export function AppInner() {
       <Route path="/shopping/list/:id" element={<ShoppingListDetail />} />
       <Route path="/meals" element={<MealPlannerModule />} />
       <Route path="/meals/recipe/:id" element={<RecipeDetail />} />
-      <Route path="/budget" element={<ComingSoon feature="Budget Tracker" />} />
-      <Route path="/calendar" element={<ComingSoon feature="Calendar" />} />
-      <Route path="/goals" element={<ComingSoon feature="Goals Tracker" />} />
-      <Route path="/journal" element={<ComingSoon feature="Digital Journal" />} />
+      <Route path="/budget" element={<BudgetModule />} />
+      <Route path="/calendar" element={<CalendarModule />} />
+      <Route path="/goals" element={<GoalsModule />} />
+      <Route path="/journal" element={<JournalModule />} />
     </Routes>
   );
 }
