@@ -11,6 +11,7 @@ import { BudgetModule } from "./budget/BudgetModule";
 import { CalendarModule } from "./calendar/CalendarModule";
 import { GoalsModule } from "./goals/GoalsModule";
 import { JournalModule } from "./journal/JournalModule";
+import { HabitsModule } from "./habits/HabitsModule";
 
 export function AppInner() {
   return (
@@ -27,6 +28,7 @@ export function AppInner() {
       <Route path="/calendar" element={<CalendarModule />} />
       <Route path="/goals" element={<GoalsModule />} />
       <Route path="/journal" element={<JournalModule />} />
+      <Route path="/habits" element={<HabitsModule />} />
     </Routes>
   );
 }

@@ -35,37 +35,78 @@ export const getMealPlan = api<GetMealPlanRequest, GetMealPlanResponse>(
   { expose: true, method: "GET", path: "/meal-plans" },
   async (req) => {
     const weekDate = new Date(req.week_of);
-    
-    // Try to get existing meal plan
+
+    // First, ensure a meal plan exists for the week, creating it if necessary.
     let mealPlan = await mealsDB.queryRow<MealPlan>`
-      SELECT * FROM meal_plans
-      WHERE week_of = ${weekDate} AND user_id = ${'anonymous'}
+      INSERT INTO meal_plans (week_of, user_id)
+      VALUES (${weekDate}, ${'anonymous'})
+      ON CONFLICT (week_of, user_id) DO UPDATE
+      SET week_of = EXCLUDED.week_of -- This is a no-op to ensure RETURNING works
+      RETURNING *
     `;
-    
-    // Create if doesn't exist
+
     if (!mealPlan) {
-      mealPlan = await mealsDB.queryRow<MealPlan>`
-        INSERT INTO meal_plans (week_of, user_id)
-        VALUES (${weekDate}, ${'anonymous'})
-        RETURNING *
-      `;
-      
-      if (!mealPlan) {
-        throw APIError.internal("failed to create meal plan");
-      }
+      // This should ideally not be reached due to the ON CONFLICT clause.
+      throw APIError.internal("failed to get or create meal plan");
     }
-    
-    // Get all entries for this meal plan
-    const entries = await mealsDB.queryAll<MealPlanEntry>`
-      SELECT * FROM meal_plan_entries
-      WHERE meal_plan_id = ${mealPlan.id}
-      ORDER BY day_of_week ASC, meal_type ASC
+
+    // Now, fetch the meal plan and all its entries in a single query.
+    const rows = await mealsDB.queryAll<{
+      mp_id: number;
+      mp_week_of: Date;
+      mp_user_id: string;
+      mp_created_at: Date;
+      mp_updated_at: Date;
+      entry_id: number | null;
+      entry_day_of_week: number | null;
+      entry_meal_type: 'breakfast' | 'lunch' | 'dinner' | null;
+      entry_recipe_id: number | null;
+      entry_custom_meal: string | null;
+      entry_created_at: Date | null;
+      entry_updated_at: Date | null;
+    }>`
+      SELECT
+        mp.id as mp_id,
+        mp.week_of as mp_week_of,
+        mp.user_id as mp_user_id,
+        mp.created_at as mp_created_at,
+        mp.updated_at as mp_updated_at,
+        mpe.id as entry_id,
+        mpe.day_of_week as entry_day_of_week,
+        mpe.meal_type as entry_meal_type,
+        mpe.recipe_id as entry_recipe_id,
+        mpe.custom_meal as entry_custom_meal,
+        mpe.created_at as entry_created_at,
+        mpe.updated_at as entry_updated_at
+      FROM
+        meal_plans mp
+      LEFT JOIN
+        meal_plan_entries mpe ON mp.id = mpe.meal_plan_id
+      WHERE
+        mp.id = ${mealPlan.id}
+      ORDER BY
+        mpe.day_of_week ASC, mpe.meal_type ASC
     `;
-    
+
     const mealPlanWithEntries: MealPlanWithEntries = {
       ...mealPlan,
-      entries
+      entries: []
     };
+
+    for (const row of rows) {
+      if (row.entry_id) {
+        mealPlanWithEntries.entries.push({
+          id: row.entry_id,
+          meal_plan_id: row.mp_id,
+          day_of_week: row.entry_day_of_week!,
+          meal_type: row.entry_meal_type!,
+          recipe_id: row.entry_recipe_id,
+          custom_meal: row.entry_custom_meal,
+          created_at: row.entry_created_at!,
+          updated_at: row.entry_updated_at!,
+        });
+      }
+    }
     
     return { meal_plan: mealPlanWithEntries };
   }
@@ -78,52 +119,44 @@ export const setMeal = api<SetMealRequest, SetMealResponse>(
     const weekDate = new Date(req.week_of);
     
     // Get or create meal plan
-    let mealPlan = await mealsDB.queryRow<MealPlan>`
-      SELECT * FROM meal_plans
-      WHERE week_of = ${weekDate} AND user_id = ${'anonymous'}
-    `;
-    
-    if (!mealPlan) {
-      mealPlan = await mealsDB.queryRow<MealPlan>`
-        INSERT INTO meal_plans (week_of, user_id)
-        VALUES (${weekDate}, ${'anonymous'})
-        RETURNING *
-      `;
-      
-      if (!mealPlan) {
-        throw APIError.internal("failed to create meal plan");
-      }
-    }
-    
-    // Upsert the meal entry
-    const entry = await mealsDB.queryRow<MealPlanEntry>`
-      INSERT INTO meal_plan_entries (meal_plan_id, day_of_week, meal_type, recipe_id, custom_meal)
-      VALUES (${mealPlan.id}, ${req.day_of_week}, ${req.meal_type}, ${req.recipe_id || null}, ${req.custom_meal || null})
-      ON CONFLICT (meal_plan_id, day_of_week, meal_type)
-      DO UPDATE SET
-        recipe_id = EXCLUDED.recipe_id,
-        custom_meal = EXCLUDED.custom_meal,
-        updated_at = NOW()
+    const mealPlan = await mealsDB.queryRow<MealPlan>`
+      INSERT INTO meal_plans (week_of, user_id)
+      VALUES (${weekDate}, ${'anonymous'})
+      ON CONFLICT (week_of, user_id) DO UPDATE
+      SET week_of = EXCLUDED.week_of
       RETURNING *
     `;
     
-    if (!entry) {
+    if (!mealPlan) {
+      throw APIError.internal("failed to get or create meal plan");
+    }
+    
+    // Upsert the meal entry and join with the recipe table to get all data in one go.
+    const entryWithRecipe = await mealsDB.queryRow<MealPlanEntry & { recipe?: Recipe }>`
+      WITH entry AS (
+        INSERT INTO meal_plan_entries (meal_plan_id, day_of_week, meal_type, recipe_id, custom_meal)
+        VALUES (${mealPlan.id}, ${req.day_of_week}, ${req.meal_type}, ${req.recipe_id || null}, ${req.custom_meal || null})
+        ON CONFLICT (meal_plan_id, day_of_week, meal_type)
+        DO UPDATE SET
+          recipe_id = EXCLUDED.recipe_id,
+          custom_meal = EXCLUDED.custom_meal,
+          updated_at = NOW()
+        RETURNING *
+      )
+      SELECT
+        e.*,
+        row_to_json(r) as recipe
+      FROM entry e
+      LEFT JOIN recipes r ON e.recipe_id = r.id
+    `;
+    
+    if (!entryWithRecipe) {
       throw APIError.internal("failed to set meal");
     }
-    
-    // Get recipe if recipe_id is set
-    let recipe: Recipe | undefined;
-    if (entry.recipe_id) {
-      recipe = await mealsDB.queryRow<Recipe>`
-        SELECT * FROM recipes
-        WHERE id = ${entry.recipe_id} AND user_id = ${'anonymous'}
-      ` || undefined;
+
+    if (entryWithRecipe.recipe && (entryWithRecipe.recipe as any).id === null) {
+      entryWithRecipe.recipe = undefined;
     }
-    
-    const entryWithRecipe: MealPlanEntryWithRecipe = {
-      ...entry,
-      recipe
-    };
     
     return { entry: entryWithRecipe };
   }

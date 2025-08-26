@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { AppInner } from "./components/AppInner";
 import { Toaster } from "@/components/ui/toaster";
+import { QuickAddDialog } from "./components/QuickAddDialog";
 
 const queryClient = new QueryClient();
 
@@ -13,6 +14,7 @@ export default function App() {
           <AppInner />
         </div>
         <Toaster />
+        <QuickAddDialog />
       </BrowserRouter>
     </QueryClientProvider>
   );

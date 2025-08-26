@@ -26,3 +26,7 @@ export interface BudgetSummary {
   current_month_income: number;
   current_month_expenses: number;
 }
+
+export interface TransactionWithCategory extends Transaction {
+  category?: Category;
+}

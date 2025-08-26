@@ -1,32 +1,51 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Calendar, CheckSquare, DollarSign, Plus, ShoppingCart, ChefHat, Target, BookOpen, User } from "lucide-react";
-import { useBackend } from "../hooks/useBackend";
-import { BottomNavigation } from "./BottomNavigation";
+import { CheckSquare, User, Loader2 } from "lucide-react";
+import { useBackend } from "@/hooks/useBackend";
+import { BottomNavigation } from "@/components/BottomNavigation";
+import { FeatureCard } from "@/components/FeatureCard";
+import { PRIMARY_FEATURES, SECONDARY_FEATURES } from "@/lib/constants";
+import { useAppStore } from "@/store/appStore";
+import { useToast } from "@/components/ui/use-toast";
+import { useEffect } from "react";
 
 export function Homepage() {
   const navigate = useNavigate();
   const backend = useBackend();
+  const openQuickAdd = useAppStore((s) => s.openQuickAdd);
+  const { toast } = useToast();
 
-  const { data: boards } = useQuery({
+  const { data: boards, isLoading: isLoadingBoards, isError: isErrorBoards } = useQuery({
     queryKey: ["boards"],
     queryFn: () => backend.tasks.listBoards(),
   });
 
-  const { data: todayCards } = useQuery({
+  const { data: todayCards, isLoading: isLoadingTodayCards, isError: isErrorTodayCards } = useQuery({
     queryKey: ["today-cards"],
     queryFn: () => backend.tasks.getTodayCards(),
   });
 
-  const { data: shoppingLists } = useQuery({
+  const { data: shoppingLists, isLoading: isLoadingShoppingLists, isError: isErrorShoppingLists } = useQuery({
     queryKey: ["shopping-lists"],
     queryFn: () => backend.shopping.getLists(),
   });
 
-  const { data: recipes } = useQuery({
+  const { data: recipes, isLoading: isLoadingRecipes, isError: isErrorRecipes } = useQuery({
     queryKey: ["recipes"],
     queryFn: () => backend.meals.getRecipes(),
   });
+
+  const isError = isErrorBoards || isErrorTodayCards || isErrorShoppingLists || isErrorRecipes;
+
+  useEffect(() => {
+    if (isError) {
+      toast({
+        title: "Error",
+        description: "Could not load dashboard data. Please try again later.",
+        variant: "destructive",
+      });
+    }
+  }, [isError, toast]);
 
   const currentDate = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -38,96 +57,37 @@ export function Homepage() {
   const quickStats = [
     {
       title: "Tasks",
-      value: boards?.boards?.length || 0,
+      value: boards?.boards?.length,
+      isLoading: isLoadingBoards,
       color: "border-blue-500",
       bgColor: "bg-blue-50",
       textColor: "text-blue-600",
     },
     {
       title: "Shopping",
-      value: shoppingLists?.lists?.length || 0,
+      value: shoppingLists?.lists?.length,
+      isLoading: isLoadingShoppingLists,
       color: "border-green-500",
       bgColor: "bg-green-50",
       textColor: "text-green-600",
     },
     {
       title: "Recipes",
-      value: recipes?.recipes?.length || 0,
+      value: recipes?.recipes?.length,
+      isLoading: isLoadingRecipes,
       color: "border-orange-500",
       bgColor: "bg-orange-50",
       textColor: "text-orange-600",
     },
   ];
 
-  const primaryFeatures = [
-    {
-      title: "Task Manager",
-      description: "Organize your tasks with boards and lists",
-      icon: CheckSquare,
-      color: "border-l-blue-500",
-      bgColor: "bg-blue-50",
-      onClick: () => navigate("/tasks"),
-    },
-    {
-      title: "Shopping Hub",
-      description: "Manage your shopping and grocery lists",
-      icon: ShoppingCart,
-      color: "border-l-green-500",
-      bgColor: "bg-green-50",
-      onClick: () => navigate("/shopping"),
-    },
-    {
-      title: "Meal Planner",
-      description: "Plan your weekly meals and recipes",
-      icon: ChefHat,
-      color: "border-l-orange-500",
-      bgColor: "bg-orange-50",
-      onClick: () => navigate("/meals"),
-    },
-    {
-      title: "Budget Tracker",
-      description: "Track your expenses and income",
-      icon: DollarSign,
-      color: "border-l-purple-500",
-      bgColor: "bg-purple-50",
-      onClick: () => navigate("/budget"),
-    },
-  ];
-
-  const secondaryFeatures = [
-    {
-      title: "Calendar",
-      description: "Manage your schedule and events",
-      icon: Calendar,
-      color: "border-l-indigo-500",
-      bgColor: "bg-indigo-50",
-      onClick: () => navigate("/calendar"),
-    },
-    {
-      title: "Goals Tracker",
-      description: "Track your personal goals and milestones",
-      icon: Target,
-      color: "border-l-teal-500",
-      bgColor: "bg-teal-50",
-      onClick: () => navigate("/goals"),
-    },
-    {
-      title: "Digital Journal",
-      description: "Capture memories and thoughts",
-      icon: BookOpen,
-      color: "border-l-pink-500",
-      bgColor: "bg-pink-50",
-      onClick: () => navigate("/journal"),
-    },
-    {
-      title: "Quick Add",
-      description: "Quick actions and shortcuts",
-      icon: Plus,
-      color: "border-l-gray-500",
-      bgColor: "bg-gray-50",
-      onClick: () => {},
-    },
-  ];
+  const handleFeatureClick = (path: string) => {
+    if (path === 'quick-add') {
+      openQuickAdd();
+    } else {
+      navigate(path);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -152,13 +112,13 @@ export function Homepage() {
           {quickStats.map((stat, index) => (
             <div
               key={index}
-              className={`min-w-[100px] h-20 bg-white rounded-2xl p-4 shadow-sm ${stat.color} border-l-4 ${stat.bgColor}`}
+              className={`min-w-[100px] h-20 bg-white rounded-2xl p-4 shadow-sm ${stat.color} border-l-4 ${stat.bgColor} flex flex-col justify-center`}
             >
               <div className={`text-sm font-medium ${stat.textColor}`}>
                 {stat.title}
               </div>
               <div className={`text-xl font-bold ${stat.textColor} mt-1`}>
-                {stat.value}
+                {stat.isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : stat.value ?? 0}
               </div>
             </div>
           ))}
@@ -166,8 +126,15 @@ export function Homepage() {
       </div>
 
       {/* Today's Tasks Preview */}
-      {todayCards && todayCards.cards.length > 0 && (
-        <div className="px-4 mb-6">
+      <div className="px-4 mb-6">
+        {isLoadingTodayCards ? (
+          <div className="bg-white rounded-3xl p-5 shadow-sm border-l-4 border-l-blue-500 space-y-3">
+            <div className="h-6 bg-gray-200 rounded w-1/3 animate-pulse"></div>
+            <div className="h-4 bg-gray-200 rounded w-full animate-pulse"></div>
+            <div className="h-4 bg-gray-200 rounded w-full animate-pulse"></div>
+            <div className="h-4 bg-gray-200 rounded w-2/3 animate-pulse"></div>
+          </div>
+        ) : todayCards && todayCards.cards.length > 0 && (
           <div className="bg-white rounded-3xl p-5 shadow-sm border-l-4 border-l-blue-500">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-lg font-semibold text-gray-900">Due Today</h3>
@@ -187,28 +154,18 @@ export function Homepage() {
               ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Primary Feature Cards */}
       <div className="px-4 space-y-4 mb-6">
         <h2 className="text-lg font-semibold text-gray-900">Main Features</h2>
-        {primaryFeatures.map((card, index) => (
-          <div
-            key={index}
-            onClick={card.onClick}
-            className={`bg-white rounded-3xl p-5 shadow-sm cursor-pointer hover:shadow-md transition-shadow border-l-4 ${card.color} ${card.bgColor}`}
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
-                <card.icon className="w-6 h-6 text-gray-700" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900">{card.title}</h3>
-                <p className="text-gray-600 text-sm mt-1">{card.description}</p>
-              </div>
-            </div>
-          </div>
+        {PRIMARY_FEATURES.map((card) => (
+          <FeatureCard
+            key={card.path}
+            {...card}
+            onClick={() => handleFeatureClick(card.path)}
+          />
         ))}
       </div>
 
@@ -216,22 +173,13 @@ export function Homepage() {
       <div className="px-4 space-y-4">
         <h2 className="text-lg font-semibold text-gray-900">More Tools</h2>
         <div className="grid grid-cols-2 gap-4">
-          {secondaryFeatures.map((card, index) => (
-            <div
-              key={index}
-              onClick={card.onClick}
-              className={`bg-white rounded-2xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow border-l-4 ${card.color} ${card.bgColor}`}
-            >
-              <div className="flex flex-col items-center text-center gap-3">
-                <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                  <card.icon className="w-5 h-5 text-gray-700" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900">{card.title}</h3>
-                  <p className="text-gray-600 text-xs mt-1">{card.description}</p>
-                </div>
-              </div>
-            </div>
+          {SECONDARY_FEATURES.map((card) => (
+            <FeatureCard
+              key={card.path}
+              {...card}
+              onClick={() => handleFeatureClick(card.path)}
+              variant="secondary"
+            />
           ))}
         </div>
       </div>

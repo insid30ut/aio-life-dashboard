@@ -1,6 +1,6 @@
 import { api, APIError } from "encore.dev/api";
 import { budgetDB } from "./db";
-import type { Transaction, BudgetSummary } from "./types";
+import type { Transaction, BudgetSummary, TransactionWithCategory, Category } from "./types";
 
 export interface CreateTransactionRequest {
   description: string;
@@ -15,7 +15,7 @@ export interface CreateTransactionResponse {
 }
 
 export interface GetTransactionsResponse {
-  transactions: Transaction[];
+  transactions: TransactionWithCategory[];
 }
 
 export interface GetSummaryResponse {
@@ -53,16 +53,28 @@ export const createTransaction = api<CreateTransactionRequest, CreateTransaction
   }
 );
 
-// Gets all transactions for the current user.
+// Gets all transactions for the current user, with their categories.
 export const getTransactions = api<void, GetTransactionsResponse>(
   { expose: true, method: "GET", path: "/budget/transactions" },
   async () => {
-    const transactions = await budgetDB.queryAll<Transaction>`
-      SELECT * FROM transactions
-      WHERE user_id = ${'anonymous'}
-      ORDER BY date DESC, created_at DESC
+    const transactions = await budgetDB.queryAll<TransactionWithCategory>`
+      SELECT
+        t.*,
+        row_to_json(c) as category
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      WHERE t.user_id = ${'anonymous'}
+      ORDER BY t.date DESC, t.created_at DESC
     `;
-    
+
+    transactions.forEach(t => {
+      // If there's no category, row_to_json returns a json object with null values.
+      // We check for this and set category to undefined instead.
+      if (t.category && (t.category as any).id === null) {
+        t.category = undefined;
+      }
+    });
+
     return { transactions };
   }
 );

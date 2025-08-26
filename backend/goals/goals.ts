@@ -89,54 +89,42 @@ export const updateGoal = api<UpdateGoalRequest, UpdateGoalResponse>(
     const updates: string[] = [];
     const values: any[] = [];
     
+    // Build the SET clauses dynamically
     if (req.title !== undefined) {
       updates.push(`title = $${values.length + 1}`);
       values.push(req.title);
     }
-    
     if (req.description !== undefined) {
       updates.push(`description = $${values.length + 1}`);
       values.push(req.description);
     }
-    
     if (req.target_value !== undefined) {
       updates.push(`target_value = $${values.length + 1}`);
       values.push(req.target_value);
     }
-    
-    if (req.current_value !== undefined) {
-      updates.push(`current_value = $${values.length + 1}`);
-      values.push(req.current_value);
-      
-      // Auto-complete goal if current_value reaches target_value
-      const goal = await goalsDB.queryRow<Goal>`
-        SELECT target_value FROM goals 
-        WHERE id = ${req.id} AND user_id = ${'anonymous'}
-      `;
-      
-      if (goal && req.current_value >= goal.target_value) {
-        updates.push(`status = $${values.length + 1}`);
-        values.push('completed');
-      }
-    }
-    
     if (req.unit !== undefined) {
       updates.push(`unit = $${values.length + 1}`);
       values.push(req.unit);
     }
-    
     if (req.target_date !== undefined) {
       updates.push(`target_date = $${values.length + 1}`);
       values.push(req.target_date);
     }
     
-    if (req.status !== undefined) {
+    // Handle current_value and status update together
+    if (req.current_value !== undefined) {
+      updates.push(`current_value = $${values.length + 1}`);
+      values.push(req.current_value);
+      // Use a CASE statement to conditionally update the status in the same query
+      updates.push(`status = CASE WHEN $${values.length} >= target_value THEN 'completed' ELSE status END`);
+    } else if (req.status !== undefined) {
+      // If only status is provided, update it directly
       updates.push(`status = $${values.length + 1}`);
       values.push(req.status);
     }
-    
+
     updates.push(`updated_at = NOW()`);
-    
+
     if (updates.length === 1) { // Only updated_at
       throw APIError.invalidArgument("no fields to update");
     }

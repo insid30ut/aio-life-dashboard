@@ -85,26 +85,77 @@ export const getRecipes = api<void, GetRecipesResponse>(
 export const getRecipe = api<{ id: number }, GetRecipeResponse>(
   { expose: true, method: "GET", path: "/recipes/:id" },
   async (req) => {
-    const recipe = await mealsDB.queryRow<Recipe>`
-      SELECT * FROM recipes
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+    const rows = await mealsDB.queryAll<{
+        recipe_id: number;
+        recipe_name: string;
+        recipe_instructions: string;
+        recipe_user_id: string;
+        recipe_created_at: Date;
+        recipe_updated_at: Date;
+        ingredient_id: number | null;
+        ingredient_name: string | null;
+        ingredient_quantity: string | null;
+        ingredient_recipe_id: number | null;
+        ingredient_position: number | null;
+        ingredient_created_at: Date | null;
+    }>`
+        SELECT
+            r.id AS recipe_id,
+            r.name AS recipe_name,
+            r.instructions AS recipe_instructions,
+            r.user_id AS recipe_user_id,
+            r.created_at AS recipe_created_at,
+            r.updated_at AS recipe_updated_at,
+            ri.id AS ingredient_id,
+            ri.name AS ingredient_name,
+            ri.quantity AS ingredient_quantity,
+            ri.recipe_id AS ingredient_recipe_id,
+            ri.position AS ingredient_position,
+            ri.created_at AS ingredient_created_at
+        FROM
+            recipes r
+        LEFT JOIN
+            recipe_ingredients ri ON r.id = ri.recipe_id
+        WHERE
+            r.id = ${req.id} AND r.user_id = ${'anonymous'}
+        ORDER BY
+            ri.position ASC
     `;
-    
-    if (!recipe) {
-      throw APIError.notFound("recipe not found");
+
+    if (rows.length === 0) {
+        const recipe = await mealsDB.queryRow<Recipe>`
+            SELECT * FROM recipes WHERE id = ${req.id} AND user_id = ${'anonymous'}
+        `;
+        if (!recipe) {
+            throw APIError.notFound("recipe not found");
+        }
+        return { recipe: { ...recipe, ingredients: [] } };
     }
-    
-    const ingredients = await mealsDB.queryAll<RecipeIngredient>`
-      SELECT * FROM recipe_ingredients
-      WHERE recipe_id = ${req.id}
-      ORDER BY position ASC
-    `;
-    
+
+    const firstRow = rows[0];
     const recipeWithIngredients: RecipeWithIngredients = {
-      ...recipe,
-      ingredients
+        id: firstRow.recipe_id,
+        name: firstRow.recipe_name,
+        instructions: firstRow.recipe_instructions,
+        user_id: firstRow.recipe_user_id,
+        created_at: firstRow.recipe_created_at,
+        updated_at: firstRow.recipe_updated_at,
+        ingredients: [],
     };
-    
+
+    for (const row of rows) {
+        if (row.ingredient_id) {
+            recipeWithIngredients.ingredients.push({
+                id: row.ingredient_id,
+                name: row.ingredient_name!,
+                quantity: row.ingredient_quantity!,
+                recipe_id: row.ingredient_recipe_id!,
+                position: row.ingredient_position!,
+                created_at: row.ingredient_created_at!,
+            });
+        }
+    }
+
     return { recipe: recipeWithIngredients };
   }
 );
@@ -162,28 +213,8 @@ export const updateRecipe = api<UpdateRecipeRequest, UpdateRecipeResponse>(
       }
     }
     
-    // Get the updated recipe with ingredients
-    const recipe = await mealsDB.queryRow<Recipe>`
-      SELECT * FROM recipes
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
-    `;
-    
-    if (!recipe) {
-      throw APIError.notFound("recipe not found");
-    }
-    
-    const ingredients = await mealsDB.queryAll<RecipeIngredient>`
-      SELECT * FROM recipe_ingredients
-      WHERE recipe_id = ${req.id}
-      ORDER BY position ASC
-    `;
-    
-    const recipeWithIngredients: RecipeWithIngredients = {
-      ...recipe,
-      ingredients
-    };
-    
-    return { recipe: recipeWithIngredients };
+    // Re-fetch the fully updated recipe with its ingredients using the optimized getRecipe function.
+    return getRecipe({ id: req.id });
   }
 );
 
