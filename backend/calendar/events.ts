@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { calendarDB } from "./db";
 import type { Event } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface CreateEventRequest {
   title: string;
@@ -29,11 +30,11 @@ export interface UpdateEventResponse {
 
 // Creates a new calendar event.
 export const createEvent = api<CreateEventRequest, CreateEventResponse>(
-  { expose: true, method: "POST", path: "/calendar/events" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/calendar/events", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateEventRequest) => {
     const event = await calendarDB.queryRow<Event>`
       INSERT INTO events (title, description, date, user_id)
-      VALUES (${req.title}, ${req.description || null}, ${req.date}, ${'anonymous'})
+      VALUES (${req.title}, ${req.description || null}, ${req.date}, ${auth.userID})
       RETURNING *
     `;
     
@@ -47,11 +48,11 @@ export const createEvent = api<CreateEventRequest, CreateEventResponse>(
 
 // Gets all events for the current user.
 export const getEvents = api<void, GetEventsResponse>(
-  { expose: true, method: "GET", path: "/calendar/events" },
-  async () => {
+  { expose: true, method: "GET", path: "/calendar/events", auth: true },
+  async ({ auth }: { auth: AuthPayload }) => {
     const events = await calendarDB.queryAll<Event>`
       SELECT * FROM events
-      WHERE user_id = ${'anonymous'}
+      WHERE user_id = ${auth.userID}
       ORDER BY date ASC
     `;
     
@@ -61,11 +62,11 @@ export const getEvents = api<void, GetEventsResponse>(
 
 // Gets a specific event.
 export const getEvent = api<{ id: number }, { event: Event }>(
-  { expose: true, method: "GET", path: "/calendar/events/:id" },
-  async (req) => {
+  { expose: true, method: "GET", path: "/calendar/events/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     const event = await calendarDB.queryRow<Event>`
       SELECT * FROM events
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
     
     if (!event) {
@@ -78,8 +79,8 @@ export const getEvent = api<{ id: number }, { event: Event }>(
 
 // Updates an event.
 export const updateEvent = api<UpdateEventRequest, UpdateEventResponse>(
-  { expose: true, method: "PUT", path: "/calendar/events/:id" },
-  async (req) => {
+  { expose: true, method: "PUT", path: "/calendar/events/:id", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & UpdateEventRequest) => {
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -110,7 +111,7 @@ export const updateEvent = api<UpdateEventRequest, UpdateEventResponse>(
       WHERE id = $${values.length + 1} AND user_id = $${values.length + 2}
       RETURNING *
     `;
-    values.push(req.id, 'anonymous');
+    values.push(req.id, auth.userID);
     
     const event = await calendarDB.rawQueryRow<Event>(query, ...values);
     
@@ -124,11 +125,11 @@ export const updateEvent = api<UpdateEventRequest, UpdateEventResponse>(
 
 // Deletes an event.
 export const deleteEvent = api<{ id: number }, void>(
-  { expose: true, method: "DELETE", path: "/calendar/events/:id" },
-  async (req) => {
+  { expose: true, method: "DELETE", path: "/calendar/events/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     await calendarDB.exec`
       DELETE FROM events
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
   }
 );

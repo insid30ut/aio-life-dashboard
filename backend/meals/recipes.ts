@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { mealsDB } from "./db";
 import type { Recipe, RecipeIngredient, RecipeWithIngredients } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface CreateRecipeRequest {
   name: string;
@@ -33,11 +34,11 @@ export interface UpdateRecipeResponse {
 
 // Creates a new recipe.
 export const createRecipe = api<CreateRecipeRequest, CreateRecipeResponse>(
-  { expose: true, method: "POST", path: "/recipes" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/recipes", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateRecipeRequest) => {
     const recipe = await mealsDB.queryRow<Recipe>`
       INSERT INTO recipes (name, instructions, user_id)
-      VALUES (${req.name}, ${req.instructions}, ${'anonymous'})
+      VALUES (${req.name}, ${req.instructions}, ${auth.userID})
       RETURNING *
     `;
     
@@ -69,11 +70,11 @@ export const createRecipe = api<CreateRecipeRequest, CreateRecipeResponse>(
 
 // Gets all recipes for the current user.
 export const getRecipes = api<void, GetRecipesResponse>(
-  { expose: true, method: "GET", path: "/recipes" },
-  async () => {
+  { expose: true, method: "GET", path: "/recipes", auth: true },
+  async ({ auth }: { auth: AuthPayload }) => {
     const recipes = await mealsDB.queryAll<Recipe>`
       SELECT * FROM recipes
-      WHERE user_id = ${'anonymous'}
+      WHERE user_id = ${auth.userID}
       ORDER BY name ASC
     `;
     
@@ -83,8 +84,8 @@ export const getRecipes = api<void, GetRecipesResponse>(
 
 // Gets a specific recipe with ingredients.
 export const getRecipe = api<{ id: number }, GetRecipeResponse>(
-  { expose: true, method: "GET", path: "/recipes/:id" },
-  async (req) => {
+  { expose: true, method: "GET", path: "/recipes/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     const rows = await mealsDB.queryAll<{
         recipe_id: number;
         recipe_name: string;
@@ -117,14 +118,14 @@ export const getRecipe = api<{ id: number }, GetRecipeResponse>(
         LEFT JOIN
             recipe_ingredients ri ON r.id = ri.recipe_id
         WHERE
-            r.id = ${req.id} AND r.user_id = ${'anonymous'}
+            r.id = ${id} AND r.user_id = ${auth.userID}
         ORDER BY
             ri.position ASC
     `;
 
     if (rows.length === 0) {
         const recipe = await mealsDB.queryRow<Recipe>`
-            SELECT * FROM recipes WHERE id = ${req.id} AND user_id = ${'anonymous'}
+            SELECT * FROM recipes WHERE id = ${id} AND user_id = ${auth.userID}
         `;
         if (!recipe) {
             throw APIError.notFound("recipe not found");
@@ -162,8 +163,8 @@ export const getRecipe = api<{ id: number }, GetRecipeResponse>(
 
 // Updates a recipe.
 export const updateRecipe = api<UpdateRecipeRequest, UpdateRecipeResponse>(
-  { expose: true, method: "PUT", path: "/recipes/:id" },
-  async (req) => {
+  { expose: true, method: "PUT", path: "/recipes/:id", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & UpdateRecipeRequest) => {
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -186,7 +187,7 @@ export const updateRecipe = api<UpdateRecipeRequest, UpdateRecipeResponse>(
         WHERE id = $${values.length + 1} AND user_id = $${values.length + 2}
         RETURNING *
       `;
-      values.push(req.id, 'anonymous');
+      values.push(req.id, auth.userID);
       
       const recipe = await mealsDB.rawQueryRow<Recipe>(query, ...values);
       
@@ -197,6 +198,12 @@ export const updateRecipe = api<UpdateRecipeRequest, UpdateRecipeResponse>(
     
     // Update ingredients if provided
     if (req.ingredients !== undefined) {
+      // First, ensure the user owns the recipe they are trying to update ingredients for.
+      const recipe = await mealsDB.queryRow`SELECT id FROM recipes WHERE id = ${req.id} AND user_id = ${auth.userID}`;
+      if (!recipe) {
+        throw APIError.notFound("recipe not found");
+      }
+
       // Delete existing ingredients
       await mealsDB.exec`
         DELETE FROM recipe_ingredients
@@ -213,18 +220,17 @@ export const updateRecipe = api<UpdateRecipeRequest, UpdateRecipeResponse>(
       }
     }
     
-    // Re-fetch the fully updated recipe with its ingredients using the optimized getRecipe function.
-    return getRecipe({ id: req.id });
+    return getRecipe({ auth, id: req.id });
   }
 );
 
 // Deletes a recipe.
 export const deleteRecipe = api<{ id: number }, void>(
-  { expose: true, method: "DELETE", path: "/recipes/:id" },
-  async (req) => {
+  { expose: true, method: "DELETE", path: "/recipes/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     await mealsDB.exec`
       DELETE FROM recipes
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
   }
 );

@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { goalsDB } from "./db";
 import type { Goal } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface CreateGoalRequest {
   title: string;
@@ -35,11 +36,11 @@ export interface UpdateGoalResponse {
 
 // Creates a new goal.
 export const createGoal = api<CreateGoalRequest, CreateGoalResponse>(
-  { expose: true, method: "POST", path: "/goals" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/goals", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateGoalRequest) => {
     const goal = await goalsDB.queryRow<Goal>`
       INSERT INTO goals (title, description, target_value, unit, target_date, user_id)
-      VALUES (${req.title}, ${req.description || null}, ${req.target_value}, ${req.unit}, ${req.target_date}, ${'anonymous'})
+      VALUES (${req.title}, ${req.description || null}, ${req.target_value}, ${req.unit}, ${req.target_date}, ${auth.userID})
       RETURNING *
     `;
     
@@ -53,11 +54,11 @@ export const createGoal = api<CreateGoalRequest, CreateGoalResponse>(
 
 // Gets all goals for the current user.
 export const getGoals = api<void, GetGoalsResponse>(
-  { expose: true, method: "GET", path: "/goals" },
-  async () => {
+  { expose: true, method: "GET", path: "/goals", auth: true },
+  async ({ auth }: { auth: AuthPayload }) => {
     const goals = await goalsDB.queryAll<Goal>`
       SELECT * FROM goals
-      WHERE user_id = ${'anonymous'}
+      WHERE user_id = ${auth.userID}
       ORDER BY target_date ASC, created_at DESC
     `;
     
@@ -67,11 +68,11 @@ export const getGoals = api<void, GetGoalsResponse>(
 
 // Gets a specific goal.
 export const getGoal = api<{ id: number }, { goal: Goal }>(
-  { expose: true, method: "GET", path: "/goals/:id" },
-  async (req) => {
+  { expose: true, method: "GET", path: "/goals/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     const goal = await goalsDB.queryRow<Goal>`
       SELECT * FROM goals
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
     
     if (!goal) {
@@ -84,8 +85,8 @@ export const getGoal = api<{ id: number }, { goal: Goal }>(
 
 // Updates a goal.
 export const updateGoal = api<UpdateGoalRequest, UpdateGoalResponse>(
-  { expose: true, method: "PUT", path: "/goals/:id" },
-  async (req) => {
+  { expose: true, method: "PUT", path: "/goals/:id", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & UpdateGoalRequest) => {
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -135,7 +136,7 @@ export const updateGoal = api<UpdateGoalRequest, UpdateGoalResponse>(
       WHERE id = $${values.length + 1} AND user_id = $${values.length + 2}
       RETURNING *
     `;
-    values.push(req.id, 'anonymous');
+    values.push(req.id, auth.userID);
     
     const goal = await goalsDB.rawQueryRow<Goal>(query, ...values);
     
@@ -149,11 +150,11 @@ export const updateGoal = api<UpdateGoalRequest, UpdateGoalResponse>(
 
 // Deletes a goal.
 export const deleteGoal = api<{ id: number }, void>(
-  { expose: true, method: "DELETE", path: "/goals/:id" },
-  async (req) => {
+  { expose: true, method: "DELETE", path: "/goals/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     await goalsDB.exec`
       DELETE FROM goals
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
   }
 );

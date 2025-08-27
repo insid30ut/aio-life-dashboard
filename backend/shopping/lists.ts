@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { shoppingDB } from "./db";
 import type { ShoppingList, ShoppingListWithItems, ShoppingItem } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface CreateListRequest {
   title: string;
@@ -29,11 +30,11 @@ export interface UpdateListResponse {
 
 // Creates a new shopping list.
 export const createList = api<CreateListRequest, CreateListResponse>(
-  { expose: true, method: "POST", path: "/shopping/lists" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/shopping/lists", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateListRequest) => {
     const list = await shoppingDB.queryRow<ShoppingList>`
       INSERT INTO shopping_lists (title, user_id)
-      VALUES (${req.title}, ${'anonymous'})
+      VALUES (${req.title}, ${auth.userID})
       RETURNING *
     `;
     
@@ -47,11 +48,11 @@ export const createList = api<CreateListRequest, CreateListResponse>(
 
 // Gets all shopping lists for the current user.
 export const getLists = api<void, GetListsResponse>(
-  { expose: true, method: "GET", path: "/shopping/lists" },
-  async () => {
+  { expose: true, method: "GET", path: "/shopping/lists", auth: true },
+  async ({ auth }: { auth: AuthPayload }) => {
     const lists = await shoppingDB.queryAll<ShoppingList>`
       SELECT * FROM shopping_lists
-      WHERE user_id = ${'anonymous'}
+      WHERE user_id = ${auth.userID}
       ORDER BY updated_at DESC
     `;
     
@@ -61,8 +62,8 @@ export const getLists = api<void, GetListsResponse>(
 
 // Gets a specific shopping list with all its items.
 export const getList = api<{ id: number }, GetListResponse>(
-  { expose: true, method: "GET", path: "/shopping/lists/:id" },
-  async (req) => {
+  { expose: true, method: "GET", path: "/shopping/lists/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     const rows = await shoppingDB.queryAll<{
         list_id: number;
         list_title: string;
@@ -95,15 +96,14 @@ export const getList = api<{ id: number }, GetListResponse>(
         LEFT JOIN
             shopping_items si ON sl.id = si.list_id
         WHERE
-            sl.id = ${req.id} AND sl.user_id = ${'anonymous'}
+            sl.id = ${id} AND sl.user_id = ${auth.userID}
         ORDER BY
             si.position ASC
     `;
 
     if (rows.length === 0) {
-        // Check if the list exists but is just empty
         const list = await shoppingDB.queryRow<ShoppingList>`
-            SELECT * FROM shopping_lists WHERE id = ${req.id} AND user_id = ${'anonymous'}
+            SELECT * FROM shopping_lists WHERE id = ${id} AND user_id = ${auth.userID}
         `;
         if (!list) {
             throw APIError.notFound("shopping list not found");
@@ -141,12 +141,12 @@ export const getList = api<{ id: number }, GetListResponse>(
 
 // Updates a shopping list.
 export const updateList = api<UpdateListRequest, UpdateListResponse>(
-  { expose: true, method: "PUT", path: "/shopping/lists/:id" },
-  async (req) => {
+  { expose: true, method: "PUT", path: "/shopping/lists/:id", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & UpdateListRequest) => {
     const list = await shoppingDB.queryRow<ShoppingList>`
       UPDATE shopping_lists
       SET title = ${req.title}, updated_at = NOW()
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${req.id} AND user_id = ${auth.userID}
       RETURNING *
     `;
     
@@ -160,11 +160,11 @@ export const updateList = api<UpdateListRequest, UpdateListResponse>(
 
 // Deletes a shopping list.
 export const deleteList = api<{ id: number }, void>(
-  { expose: true, method: "DELETE", path: "/shopping/lists/:id" },
-  async (req) => {
+  { expose: true, method: "DELETE", path: "/shopping/lists/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     await shoppingDB.exec`
       DELETE FROM shopping_lists
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
   }
 );

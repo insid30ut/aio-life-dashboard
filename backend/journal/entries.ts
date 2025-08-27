@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { journalDB } from "./db";
 import type { Entry } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface CreateEntryRequest {
   title: string;
@@ -31,11 +32,11 @@ export interface UpdateEntryResponse {
 
 // Creates a new journal entry.
 export const createEntry = api<CreateEntryRequest, CreateEntryResponse>(
-  { expose: true, method: "POST", path: "/journal/entries" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/journal/entries", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateEntryRequest) => {
     const entry = await journalDB.queryRow<Entry>`
       INSERT INTO entries (title, content, mood, date, user_id)
-      VALUES (${req.title}, ${req.content}, ${req.mood || null}, ${req.date}, ${'anonymous'})
+      VALUES (${req.title}, ${req.content}, ${req.mood || null}, ${req.date}, ${auth.userID})
       RETURNING *
     `;
     
@@ -49,11 +50,11 @@ export const createEntry = api<CreateEntryRequest, CreateEntryResponse>(
 
 // Gets all journal entries for the current user.
 export const getEntries = api<void, GetEntriesResponse>(
-  { expose: true, method: "GET", path: "/journal/entries" },
-  async () => {
+  { expose: true, method: "GET", path: "/journal/entries", auth: true },
+  async ({ auth }: { auth: AuthPayload }) => {
     const entries = await journalDB.queryAll<Entry>`
       SELECT * FROM entries
-      WHERE user_id = ${'anonymous'}
+      WHERE user_id = ${auth.userID}
       ORDER BY date DESC, created_at DESC
     `;
     
@@ -63,11 +64,11 @@ export const getEntries = api<void, GetEntriesResponse>(
 
 // Gets a specific journal entry.
 export const getEntry = api<{ id: number }, { entry: Entry }>(
-  { expose: true, method: "GET", path: "/journal/entries/:id" },
-  async (req) => {
+  { expose: true, method: "GET", path: "/journal/entries/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     const entry = await journalDB.queryRow<Entry>`
       SELECT * FROM entries
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
     
     if (!entry) {
@@ -80,8 +81,8 @@ export const getEntry = api<{ id: number }, { entry: Entry }>(
 
 // Updates a journal entry.
 export const updateEntry = api<UpdateEntryRequest, UpdateEntryResponse>(
-  { expose: true, method: "PUT", path: "/journal/entries/:id" },
-  async (req) => {
+  { expose: true, method: "PUT", path: "/journal/entries/:id", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & UpdateEntryRequest) => {
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -117,7 +118,7 @@ export const updateEntry = api<UpdateEntryRequest, UpdateEntryResponse>(
       WHERE id = $${values.length + 1} AND user_id = $${values.length + 2}
       RETURNING *
     `;
-    values.push(req.id, 'anonymous');
+    values.push(req.id, auth.userID);
     
     const entry = await journalDB.rawQueryRow<Entry>(query, ...values);
     
@@ -131,11 +132,11 @@ export const updateEntry = api<UpdateEntryRequest, UpdateEntryResponse>(
 
 // Deletes a journal entry.
 export const deleteEntry = api<{ id: number }, void>(
-  { expose: true, method: "DELETE", path: "/journal/entries/:id" },
-  async (req) => {
+  { expose: true, method: "DELETE", path: "/journal/entries/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     await journalDB.exec`
       DELETE FROM entries
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
   }
 );

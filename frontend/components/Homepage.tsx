@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { CheckSquare, User, Loader2 } from "lucide-react";
+import { CheckSquare, Loader2 } from "lucide-react";
+import { UserButton } from "@clerk/clerk-react";
 import { useBackend } from "@/hooks/useBackend";
-import { BottomNavigation } from "@/components/BottomNavigation";
 import { FeatureCard } from "@/components/FeatureCard";
 import { PRIMARY_FEATURES, SECONDARY_FEATURES } from "@/lib/constants";
 import { useAppStore } from "@/store/appStore";
@@ -90,7 +90,7 @@ export function Homepage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
       <div className="h-30 bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-6">
         <div className="flex justify-between items-start">
@@ -100,9 +100,7 @@ export function Homepage() {
             </h1>
             <p className="text-white/80 mt-1">{currentDate}</p>
           </div>
-          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-            <User className="w-6 h-6 text-white" />
-          </div>
+          <UserButton afterSignOutUrl="/"/>
         </div>
       </div>
 
@@ -183,8 +181,6 @@ export function Homepage() {
           ))}
         </div>
       </div>
-
-      <BottomNavigation />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { tasksDB } from "./db";
 import type { List } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface CreateListRequest {
   title: string;
@@ -23,8 +24,16 @@ export interface UpdateListResponse {
 
 // Creates a new list in a board.
 export const createList = api<CreateListRequest, CreateListResponse>(
-  { expose: true, method: "POST", path: "/lists" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/lists", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateListRequest) => {
+    // Verify the user owns the board they are creating a list in.
+    const board = await tasksDB.queryRow`
+        SELECT id FROM boards WHERE id = ${req.board_id} AND user_id = ${auth.userID}
+    `;
+    if (!board) {
+        throw APIError.notFound("board not found");
+    }
+
     // Get the next position
     const maxPosition = await tasksDB.queryRow<{ max_position: number | null }>`
       SELECT MAX(position) as max_position FROM lists
@@ -49,8 +58,8 @@ export const createList = api<CreateListRequest, CreateListResponse>(
 
 // Updates a list.
 export const updateList = api<UpdateListRequest, UpdateListResponse>(
-  { expose: true, method: "PUT", path: "/lists/:id" },
-  async (req) => {
+  { expose: true, method: "PUT", path: "/lists/:id", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & UpdateListRequest) => {
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -74,9 +83,10 @@ export const updateList = api<UpdateListRequest, UpdateListResponse>(
       UPDATE lists 
       SET ${updates.join(', ')}
       WHERE id = $${values.length + 1}
+        AND board_id IN (SELECT id FROM boards WHERE user_id = $${values.length + 2})
       RETURNING *
     `;
-    values.push(req.id);
+    values.push(req.id, auth.userID);
     
     const list = await tasksDB.rawQueryRow<List>(query, ...values);
     
@@ -90,8 +100,12 @@ export const updateList = api<UpdateListRequest, UpdateListResponse>(
 
 // Deletes a list.
 export const deleteList = api<{ id: number }, void>(
-  { expose: true, method: "DELETE", path: "/lists/:id" },
-  async (req) => {
-    await tasksDB.exec`DELETE FROM lists WHERE id = ${req.id}`;
+  { expose: true, method: "DELETE", path: "/lists/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
+    await tasksDB.exec`
+        DELETE FROM lists
+        WHERE id = ${id}
+        AND board_id IN (SELECT id FROM boards WHERE user_id = ${auth.userID})
+    `;
   }
 );

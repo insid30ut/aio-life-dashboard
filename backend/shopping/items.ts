@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { shoppingDB } from "./db";
 import type { ShoppingItem } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface CreateItemRequest {
   name: string;
@@ -33,12 +34,12 @@ export interface AddItemsResponse {
 
 // Creates a new shopping item.
 export const createItem = api<CreateItemRequest, CreateItemResponse>(
-  { expose: true, method: "POST", path: "/shopping/items" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/shopping/items", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateItemRequest) => {
     // Verify the list belongs to the user
     const list = await shoppingDB.queryRow<{ id: number }>`
       SELECT id FROM shopping_lists
-      WHERE id = ${req.list_id} AND user_id = ${'anonymous'}
+      WHERE id = ${req.list_id} AND user_id = ${auth.userID}
     `;
     
     if (!list) {
@@ -69,8 +70,8 @@ export const createItem = api<CreateItemRequest, CreateItemResponse>(
 
 // Updates a shopping item.
 export const updateItem = api<UpdateItemRequest, UpdateItemResponse>(
-  { expose: true, method: "PUT", path: "/shopping/items/:id" },
-  async (req) => {
+  { expose: true, method: "PUT", path: "/shopping/items/:id", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & UpdateItemRequest) => {
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -104,7 +105,7 @@ export const updateItem = api<UpdateItemRequest, UpdateItemResponse>(
         )
       RETURNING *
     `;
-    values.push(req.id, 'anonymous');
+    values.push(req.id, auth.userID);
     
     const item = await shoppingDB.rawQueryRow<ShoppingItem>(query, ...values);
     
@@ -118,13 +119,13 @@ export const updateItem = api<UpdateItemRequest, UpdateItemResponse>(
 
 // Deletes a shopping item.
 export const deleteItem = api<{ id: number }, void>(
-  { expose: true, method: "DELETE", path: "/shopping/items/:id" },
-  async (req) => {
+  { expose: true, method: "DELETE", path: "/shopping/items/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     await shoppingDB.exec`
       DELETE FROM shopping_items
-      WHERE id = ${req.id}
+      WHERE id = ${id}
         AND list_id IN (
-          SELECT id FROM shopping_lists WHERE user_id = ${'anonymous'}
+          SELECT id FROM shopping_lists WHERE user_id = ${auth.userID}
         )
     `;
   }
@@ -132,12 +133,12 @@ export const deleteItem = api<{ id: number }, void>(
 
 // Adds multiple items to a shopping list.
 export const addItems = api<AddItemsRequest, AddItemsResponse>(
-  { expose: true, method: "POST", path: "/shopping/lists/:list_id/items/bulk" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/shopping/lists/:list_id/items/bulk", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & AddItemsRequest) => {
     // Verify the list belongs to the user
     const list = await shoppingDB.queryRow<{ id: number }>`
       SELECT id FROM shopping_lists
-      WHERE id = ${req.list_id} AND user_id = ${'anonymous'}
+      WHERE id = ${req.list_id} AND user_id = ${auth.userID}
     `;
     
     if (!list) {
@@ -172,12 +173,12 @@ export const addItems = api<AddItemsRequest, AddItemsResponse>(
 
 // Unchecks all items in a shopping list.
 export const uncheckAllItems = api<{ list_id: number }, void>(
-  { expose: true, method: "POST", path: "/shopping/lists/:list_id/uncheck-all" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/shopping/lists/:list_id/uncheck-all", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & { list_id: number }) => {
     // Verify the list belongs to the user
     const list = await shoppingDB.queryRow<{ id: number }>`
       SELECT id FROM shopping_lists
-      WHERE id = ${req.list_id} AND user_id = ${'anonymous'}
+      WHERE id = ${req.list_id} AND user_id = ${auth.userID}
     `;
     
     if (!list) {

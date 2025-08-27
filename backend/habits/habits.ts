@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { habitsDB } from "./db";
 import type { Habit, HabitWithEntries, HabitEntry } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 // == Create Habit ==
 export interface CreateHabitRequest {
@@ -11,11 +12,11 @@ export interface CreateHabitRequest {
 }
 
 export const createHabit = api<CreateHabitRequest, { habit: Habit }>(
-  { expose: true, method: "POST", path: "/habits" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/habits", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateHabitRequest) => {
     const habit = await habitsDB.queryRow<Habit>`
       INSERT INTO habits (name, description, color, icon, user_id)
-      VALUES (${req.name}, ${req.description || null}, ${req.color || '#007AFF'}, ${req.icon || 'zap'}, ${'anonymous'})
+      VALUES (${req.name}, ${req.description || null}, ${req.color || '#007AFF'}, ${req.icon || 'zap'}, ${auth.userID})
       RETURNING *
     `;
     if (!habit) {
@@ -28,8 +29,8 @@ export const createHabit = api<CreateHabitRequest, { habit: Habit }>(
 // == Get Habits ==
 // This endpoint fetches all habits and their entries from the last 30 days.
 export const getHabits = api<void, { habits: HabitWithEntries[] }>(
-  { expose: true, method: "GET", path: "/habits" },
-  async () => {
+  { expose: true, method: "GET", path: "/habits", auth: true },
+  async ({ auth }: { auth: AuthPayload }) => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -42,7 +43,7 @@ export const getHabits = api<void, { habits: HabitWithEntries[] }>(
           WHERE he.habit_id = h.id AND he.completed_at >= ${thirtyDaysAgo}
         ) as entries
       FROM habits h
-      WHERE h.user_id = ${'anonymous'}
+      WHERE h.user_id = ${auth.userID}
       ORDER BY h.created_at DESC
     `;
 
@@ -62,9 +63,16 @@ export interface TrackHabitRequest {
 }
 
 export const trackHabit = api<TrackHabitRequest, { entry: HabitEntry }>(
-  { expose: true, method: "POST", path: "/habits/track" },
-  async (req) => {
-    // Use ON CONFLICT to do nothing if the entry already exists (upsert).
+  { expose: true, method: "POST", path: "/habits/track", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & TrackHabitRequest) => {
+    // Verify user owns the habit before tracking
+    const habit = await habitsDB.queryRow<{ id: number }>`
+        SELECT id FROM habits WHERE id = ${req.habit_id} AND user_id = ${auth.userID}
+    `;
+    if (!habit) {
+        throw APIError.notFound("habit not found");
+    }
+
     const entry = await habitsDB.queryRow<HabitEntry>`
       INSERT INTO habit_entries (habit_id, completed_at)
       VALUES (${req.habit_id}, ${req.date})
@@ -72,15 +80,12 @@ export const trackHabit = api<TrackHabitRequest, { entry: HabitEntry }>(
       RETURNING *
     `;
 
-    // If the entry already existed, the query returns null.
-    // We need to fetch it to return it to the client.
     if (!entry) {
         const existingEntry = await habitsDB.queryRow<HabitEntry>`
             SELECT * FROM habit_entries
             WHERE habit_id = ${req.habit_id} AND completed_at = ${req.date}
         `;
         if (!existingEntry) {
-            // This should not happen in normal circumstances
             throw APIError.internal("failed to track habit");
         }
         return { entry: existingEntry };
@@ -97,11 +102,13 @@ export interface UntrackHabitRequest {
 }
 
 export const untrackHabit = api<UntrackHabitRequest, { success: boolean }>(
-  { expose: true, method: "POST", path: "/habits/untrack" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/habits/untrack", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & UntrackHabitRequest) => {
     await habitsDB.exec`
       DELETE FROM habit_entries
-      WHERE habit_id = ${req.habit_id} AND completed_at = ${req.date}
+      WHERE habit_id = ${req.habit_id}
+        AND completed_at = ${req.date}
+        AND habit_id IN (SELECT id FROM habits WHERE user_id = ${auth.userID})
     `;
     return { success: true };
   }
@@ -109,11 +116,11 @@ export const untrackHabit = api<UntrackHabitRequest, { success: boolean }>(
 
 // == Delete Habit ==
 export const deleteHabit = api<{ id: number }, { success: boolean }>(
-  { expose: true, method: "DELETE", path: "/habits/:id" },
-  async ({ id }) => {
+  { expose: true, method: "DELETE", path: "/habits/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     await habitsDB.exec`
       DELETE FROM habits
-      WHERE id = ${id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
     return { success: true };
   }

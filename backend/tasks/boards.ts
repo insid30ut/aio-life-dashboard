@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { tasksDB } from "./db";
 import type { Board, BoardWithLists, ListWithCards, CardWithMembers } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface CreateBoardRequest {
   title: string;
@@ -21,11 +22,11 @@ export interface GetBoardResponse {
 
 // Creates a new board.
 export const createBoard = api<CreateBoardRequest, CreateBoardResponse>(
-  { expose: true, method: "POST", path: "/boards" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/boards", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateBoardRequest) => {
     const board = await tasksDB.queryRow<Board>`
-      INSERT INTO boards (title, background)
-      VALUES (${req.title}, ${req.background || '#007AFF'})
+      INSERT INTO boards (title, background, user_id)
+      VALUES (${req.title}, ${req.background || '#007AFF'}, ${auth.userID})
       RETURNING *
     `;
     
@@ -37,12 +38,13 @@ export const createBoard = api<CreateBoardRequest, CreateBoardResponse>(
   }
 );
 
-// Lists all boards.
+// Lists all boards for the current user.
 export const listBoards = api<void, ListBoardsResponse>(
-  { expose: true, method: "GET", path: "/boards" },
-  async () => {
+  { expose: true, method: "GET", path: "/boards", auth: true },
+  async ({ auth }: { auth: AuthPayload }) => {
     const boards = await tasksDB.queryAll<Board>`
       SELECT * FROM boards
+      WHERE user_id = ${auth.userID}
       ORDER BY updated_at DESC
     `;
     
@@ -52,14 +54,13 @@ export const listBoards = api<void, ListBoardsResponse>(
 
 // Gets a specific board with all its lists and cards.
 export const getBoard = api<{ id: number }, GetBoardResponse>(
-  { expose: true, method: "GET", path: "/boards/:id" },
-  async ({ id }) => {
-    // This single query fetches the board, its lists, the cards in those lists,
-    // and the members of each card, all in one go, preventing the N+1 query problem.
+  { expose: true, method: "GET", path: "/boards/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     const rows = await tasksDB.queryAll<{
       board_id: number;
       board_title: string;
       board_background: string;
+      board_user_id: string;
       board_created_at: Date;
       board_updated_at: Date;
       list_id: number | null;
@@ -82,6 +83,7 @@ export const getBoard = api<{ id: number }, GetBoardResponse>(
           b.id AS board_id,
           b.title AS board_title,
           b.background AS board_background,
+          b.user_id AS board_user_id,
           b.created_at AS board_created_at,
           b.updated_at AS board_updated_at,
           l.id AS list_id,
@@ -108,21 +110,18 @@ export const getBoard = api<{ id: number }, GetBoardResponse>(
       LEFT JOIN
           card_members cm ON c.id = cm.card_id
       WHERE
-          b.id = ${id}
+          b.id = ${id} AND b.user_id = ${auth.userID}
       ORDER BY
           l.position ASC, c.position ASC
     `;
 
     if (rows.length === 0) {
-      // If the query returns no rows, it could be that the board doesn't exist,
-      // or it exists but has no lists or cards. We need to check which one it is.
       const board = await tasksDB.queryRow<Board>`
-          SELECT * FROM boards WHERE id = ${id}
+          SELECT * FROM boards WHERE id = ${id} AND user_id = ${auth.userID}
       `;
       if (!board) {
         throw APIError.notFound("board not found");
       }
-      // The board exists but is empty, return it with an empty lists array.
       return { board: { ...board, lists: [] } };
     }
 
@@ -131,6 +130,7 @@ export const getBoard = api<{ id: number }, GetBoardResponse>(
       id: firstRow.board_id,
       title: firstRow.board_title,
       background: firstRow.board_background,
+      user_id: firstRow.board_user_id,
       created_at: firstRow.board_created_at,
       updated_at: firstRow.board_updated_at,
       lists: [],
@@ -140,7 +140,6 @@ export const getBoard = api<{ id: number }, GetBoardResponse>(
     const cardsMap = new Map<number, CardWithMembers>();
 
     for (const row of rows) {
-      // Process list if it exists and hasn't been seen before
       if (row.list_id && !listsMap.has(row.list_id)) {
         listsMap.set(row.list_id, {
           id: row.list_id,
@@ -153,7 +152,6 @@ export const getBoard = api<{ id: number }, GetBoardResponse>(
         });
       }
 
-      // Process card if it exists and hasn't been seen before
       if (row.card_id && !cardsMap.has(row.card_id)) {
         cardsMap.set(row.card_id, {
           id: row.card_id,
@@ -169,17 +167,14 @@ export const getBoard = api<{ id: number }, GetBoardResponse>(
         });
       }
 
-      // Add member to the card if they exist
       if (row.card_id && row.card_member_user_id) {
         const card = cardsMap.get(row.card_id);
-        // Ensure member is not duplicated (the query could return a row per member)
         if (card && !card.members.includes(row.card_member_user_id)) {
           card.members.push(row.card_member_user_id);
         }
       }
     }
 
-    // Assemble the nested structure by assigning cards to their respective lists
     for (const card of cardsMap.values()) {
       const list = listsMap.get(card.list_id);
       if (list) {

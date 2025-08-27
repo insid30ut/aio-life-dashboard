@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { budgetDB } from "./db";
 import type { Category } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface CreateCategoryRequest {
   name: string;
@@ -27,11 +28,11 @@ export interface UpdateCategoryResponse {
 
 // Creates a new budget category.
 export const createCategory = api<CreateCategoryRequest, CreateCategoryResponse>(
-  { expose: true, method: "POST", path: "/budget/categories" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/budget/categories", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateCategoryRequest) => {
     const category = await budgetDB.queryRow<Category>`
       INSERT INTO categories (name, type, user_id)
-      VALUES (${req.name}, ${req.type}, ${'anonymous'})
+      VALUES (${req.name}, ${req.type}, ${auth.userID})
       RETURNING *
     `;
     
@@ -45,11 +46,11 @@ export const createCategory = api<CreateCategoryRequest, CreateCategoryResponse>
 
 // Gets all budget categories for the current user.
 export const getCategories = api<void, GetCategoriesResponse>(
-  { expose: true, method: "GET", path: "/budget/categories" },
-  async () => {
+  { expose: true, method: "GET", path: "/budget/categories", auth: true },
+  async ({ auth }: { auth: AuthPayload }) => {
     const categories = await budgetDB.queryAll<Category>`
       SELECT * FROM categories
-      WHERE user_id = ${'anonymous'}
+      WHERE user_id = ${auth.userID}
       ORDER BY name ASC
     `;
     
@@ -59,8 +60,8 @@ export const getCategories = api<void, GetCategoriesResponse>(
 
 // Updates a budget category.
 export const updateCategory = api<UpdateCategoryRequest, UpdateCategoryResponse>(
-  { expose: true, method: "PUT", path: "/budget/categories/:id" },
-  async (req) => {
+  { expose: true, method: "PUT", path: "/budget/categories/:id", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & UpdateCategoryRequest) => {
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -86,7 +87,7 @@ export const updateCategory = api<UpdateCategoryRequest, UpdateCategoryResponse>
       WHERE id = $${values.length + 1} AND user_id = $${values.length + 2}
       RETURNING *
     `;
-    values.push(req.id, 'anonymous');
+    values.push(req.id, auth.userID);
     
     const category = await budgetDB.rawQueryRow<Category>(query, ...values);
     
@@ -100,11 +101,11 @@ export const updateCategory = api<UpdateCategoryRequest, UpdateCategoryResponse>
 
 // Deletes a budget category.
 export const deleteCategory = api<{ id: number }, void>(
-  { expose: true, method: "DELETE", path: "/budget/categories/:id" },
-  async (req) => {
+  { expose: true, method: "DELETE", path: "/budget/categories/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     await budgetDB.exec`
       DELETE FROM categories
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
   }
 );

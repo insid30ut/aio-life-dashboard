@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { mealsDB } from "./db";
 import type { MealPlan, MealPlanEntry, MealPlanWithEntries, MealPlanEntryWithRecipe, Recipe } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface GetMealPlanRequest {
   week_of: string; // YYYY-MM-DD format
@@ -32,25 +33,22 @@ export interface GetWeekIngredientsResponse {
 
 // Gets or creates a meal plan for a specific week.
 export const getMealPlan = api<GetMealPlanRequest, GetMealPlanResponse>(
-  { expose: true, method: "GET", path: "/meal-plans" },
-  async (req) => {
+  { expose: true, method: "GET", path: "/meal-plans", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & GetMealPlanRequest) => {
     const weekDate = new Date(req.week_of);
 
-    // First, ensure a meal plan exists for the week, creating it if necessary.
-    let mealPlan = await mealsDB.queryRow<MealPlan>`
+    const mealPlan = await mealsDB.queryRow<MealPlan>`
       INSERT INTO meal_plans (week_of, user_id)
-      VALUES (${weekDate}, ${'anonymous'})
+      VALUES (${weekDate}, ${auth.userID})
       ON CONFLICT (week_of, user_id) DO UPDATE
-      SET week_of = EXCLUDED.week_of -- This is a no-op to ensure RETURNING works
+      SET week_of = EXCLUDED.week_of
       RETURNING *
     `;
 
     if (!mealPlan) {
-      // This should ideally not be reached due to the ON CONFLICT clause.
       throw APIError.internal("failed to get or create meal plan");
     }
 
-    // Now, fetch the meal plan and all its entries in a single query.
     const rows = await mealsDB.queryAll<{
       mp_id: number;
       mp_week_of: Date;
@@ -83,7 +81,7 @@ export const getMealPlan = api<GetMealPlanRequest, GetMealPlanResponse>(
       LEFT JOIN
         meal_plan_entries mpe ON mp.id = mpe.meal_plan_id
       WHERE
-        mp.id = ${mealPlan.id}
+        mp.id = ${mealPlan.id} AND mp.user_id = ${auth.userID}
       ORDER BY
         mpe.day_of_week ASC, mpe.meal_type ASC
     `;
@@ -114,14 +112,13 @@ export const getMealPlan = api<GetMealPlanRequest, GetMealPlanResponse>(
 
 // Sets a meal for a specific day and meal type.
 export const setMeal = api<SetMealRequest, SetMealResponse>(
-  { expose: true, method: "POST", path: "/meal-plans/meals" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/meal-plans/meals", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & SetMealRequest) => {
     const weekDate = new Date(req.week_of);
     
-    // Get or create meal plan
     const mealPlan = await mealsDB.queryRow<MealPlan>`
       INSERT INTO meal_plans (week_of, user_id)
-      VALUES (${weekDate}, ${'anonymous'})
+      VALUES (${weekDate}, ${auth.userID})
       ON CONFLICT (week_of, user_id) DO UPDATE
       SET week_of = EXCLUDED.week_of
       RETURNING *
@@ -130,8 +127,17 @@ export const setMeal = api<SetMealRequest, SetMealResponse>(
     if (!mealPlan) {
       throw APIError.internal("failed to get or create meal plan");
     }
+
+    // Also verify the recipe belongs to the user, if provided
+    if (req.recipe_id) {
+        const recipe = await mealsDB.queryRow`
+            SELECT id FROM recipes WHERE id = ${req.recipe_id} AND user_id = ${auth.userID}
+        `;
+        if (!recipe) {
+            throw APIError.notFound("recipe not found");
+        }
+    }
     
-    // Upsert the meal entry and join with the recipe table to get all data in one go.
     const entryWithRecipe = await mealsDB.queryRow<MealPlanEntry & { recipe?: Recipe }>`
       WITH entry AS (
         INSERT INTO meal_plan_entries (meal_plan_id, day_of_week, meal_type, recipe_id, custom_meal)
@@ -164,15 +170,15 @@ export const setMeal = api<SetMealRequest, SetMealResponse>(
 
 // Removes a meal from a specific day and meal type.
 export const removeMeal = api<SetMealRequest, void>(
-  { expose: true, method: "DELETE", path: "/meal-plans/meals" },
-  async (req) => {
+  { expose: true, method: "DELETE", path: "/meal-plans/meals", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & SetMealRequest) => {
     const weekDate = new Date(req.week_of);
     
     await mealsDB.exec`
       DELETE FROM meal_plan_entries
       WHERE meal_plan_id IN (
         SELECT id FROM meal_plans
-        WHERE week_of = ${weekDate} AND user_id = ${'anonymous'}
+        WHERE week_of = ${weekDate} AND user_id = ${auth.userID}
       )
       AND day_of_week = ${req.day_of_week}
       AND meal_type = ${req.meal_type}
@@ -182,8 +188,8 @@ export const removeMeal = api<SetMealRequest, void>(
 
 // Gets all ingredients needed for a week's meal plan.
 export const getWeekIngredients = api<GetWeekIngredientsRequest, GetWeekIngredientsResponse>(
-  { expose: true, method: "GET", path: "/meal-plans/ingredients" },
-  async (req) => {
+  { expose: true, method: "GET", path: "/meal-plans/ingredients", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & GetWeekIngredientsRequest) => {
     const weekDate = new Date(req.week_of);
     
     const ingredients = await mealsDB.queryAll<{ name: string; quantity: string }>`
@@ -192,7 +198,7 @@ export const getWeekIngredients = api<GetWeekIngredientsRequest, GetWeekIngredie
       JOIN recipes r ON ri.recipe_id = r.id
       JOIN meal_plan_entries mpe ON mpe.recipe_id = r.id
       JOIN meal_plans mp ON mpe.meal_plan_id = mp.id
-      WHERE mp.week_of = ${weekDate} AND mp.user_id = ${'anonymous'}
+      WHERE mp.week_of = ${weekDate} AND mp.user_id = ${auth.userID}
       ORDER BY ri.name ASC
     `;
     

@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { budgetDB } from "./db";
-import type { Transaction, BudgetSummary, TransactionWithCategory, Category } from "./types";
+import type { Transaction, BudgetSummary, TransactionWithCategory } from "./types";
+import type { AuthPayload } from "~backend/auth/auth";
 
 export interface CreateTransactionRequest {
   description: string;
@@ -37,11 +38,22 @@ export interface UpdateTransactionResponse {
 
 // Creates a new transaction.
 export const createTransaction = api<CreateTransactionRequest, CreateTransactionResponse>(
-  { expose: true, method: "POST", path: "/budget/transactions" },
-  async (req) => {
+  { expose: true, method: "POST", path: "/budget/transactions", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & CreateTransactionRequest) => {
+    // Also verify the category belongs to the user
+    if (req.category_id) {
+        const category = await budgetDB.queryRow`
+            SELECT id FROM categories
+            WHERE id = ${req.category_id} AND user_id = ${auth.userID}
+        `;
+        if (!category) {
+            throw APIError.notFound("category not found");
+        }
+    }
+
     const transaction = await budgetDB.queryRow<Transaction>`
       INSERT INTO transactions (description, amount, type, category_id, date, user_id)
-      VALUES (${req.description}, ${req.amount}, ${req.type}, ${req.category_id || null}, ${req.date}, ${'anonymous'})
+      VALUES (${req.description}, ${req.amount}, ${req.type}, ${req.category_id || null}, ${req.date}, ${auth.userID})
       RETURNING *
     `;
     
@@ -55,21 +67,19 @@ export const createTransaction = api<CreateTransactionRequest, CreateTransaction
 
 // Gets all transactions for the current user, with their categories.
 export const getTransactions = api<void, GetTransactionsResponse>(
-  { expose: true, method: "GET", path: "/budget/transactions" },
-  async () => {
+  { expose: true, method: "GET", path: "/budget/transactions", auth: true },
+  async ({ auth }: { auth: AuthPayload }) => {
     const transactions = await budgetDB.queryAll<TransactionWithCategory>`
       SELECT
         t.*,
         row_to_json(c) as category
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
-      WHERE t.user_id = ${'anonymous'}
+      WHERE t.user_id = ${auth.userID}
       ORDER BY t.date DESC, t.created_at DESC
     `;
 
     transactions.forEach(t => {
-      // If there's no category, row_to_json returns a json object with null values.
-      // We check for this and set category to undefined instead.
       if (t.category && (t.category as any).id === null) {
         t.category = undefined;
       }
@@ -81,8 +91,8 @@ export const getTransactions = api<void, GetTransactionsResponse>(
 
 // Gets budget summary for the current user.
 export const getSummary = api<void, GetSummaryResponse>(
-  { expose: true, method: "GET", path: "/budget/summary" },
-  async () => {
+  { expose: true, method: "GET", path: "/budget/summary", auth: true },
+  async ({ auth }: { auth: AuthPayload }) => {
     const currentMonth = new Date();
     const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
     const lastDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
@@ -99,11 +109,12 @@ export const getSummary = api<void, GetSummaryResponse>(
         COALESCE(SUM(CASE WHEN type = 'income' AND date >= ${firstDayOfMonth} AND date <= ${lastDayOfMonth} THEN amount ELSE 0 END), 0) as current_month_income,
         COALESCE(SUM(CASE WHEN type = 'expense' AND date >= ${firstDayOfMonth} AND date <= ${lastDayOfMonth} THEN amount ELSE 0 END), 0) as current_month_expenses
       FROM transactions
-      WHERE user_id = ${'anonymous'}
+      WHERE user_id = ${auth.userID}
     `;
     
     if (!summary) {
-      throw APIError.internal("failed to get summary");
+      // This should not happen with COALESCE, but as a safeguard:
+      return { summary: { total_income: 0, total_expenses: 0, net_balance: 0, current_month_income: 0, current_month_expenses: 0 } };
     }
     
     const budgetSummary: BudgetSummary = {
@@ -120,8 +131,8 @@ export const getSummary = api<void, GetSummaryResponse>(
 
 // Updates a transaction.
 export const updateTransaction = api<UpdateTransactionRequest, UpdateTransactionResponse>(
-  { expose: true, method: "PUT", path: "/budget/transactions/:id" },
-  async (req) => {
+  { expose: true, method: "PUT", path: "/budget/transactions/:id", auth: true },
+  async ({ auth, ...req }: { auth: AuthPayload } & UpdateTransactionRequest) => {
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -162,7 +173,7 @@ export const updateTransaction = api<UpdateTransactionRequest, UpdateTransaction
       WHERE id = $${values.length + 1} AND user_id = $${values.length + 2}
       RETURNING *
     `;
-    values.push(req.id, 'anonymous');
+    values.push(req.id, auth.userID);
     
     const transaction = await budgetDB.rawQueryRow<Transaction>(query, ...values);
     
@@ -176,11 +187,11 @@ export const updateTransaction = api<UpdateTransactionRequest, UpdateTransaction
 
 // Deletes a transaction.
 export const deleteTransaction = api<{ id: number }, void>(
-  { expose: true, method: "DELETE", path: "/budget/transactions/:id" },
-  async (req) => {
+  { expose: true, method: "DELETE", path: "/budget/transactions/:id", auth: true },
+  async ({ auth, id }: { auth: AuthPayload; id: number }) => {
     await budgetDB.exec`
       DELETE FROM transactions
-      WHERE id = ${req.id} AND user_id = ${'anonymous'}
+      WHERE id = ${id} AND user_id = ${auth.userID}
     `;
   }
 );
