@@ -2,7 +2,7 @@
 # Do not add any extra lines or change the format of this file.
 
 # Your Clerk Publishable Key (for the frontend)
-VITE_CLERK_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY_HERE
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_ZmluZXItcHJpbWF0ZS05MS5jbGVyay5hY2NvdW50cy5kZXYk
 
 # Your Clerk Secret Key (for the backend)
-CLERK_SECRET_KEY=YOUR_SECRET_KEY_HERE
+CLERK_SECRET_KEY=sk_test_ZjsFwlndSla3KAecLMBMHgtRIV0odjemdWtqp0GdvF
