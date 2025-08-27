@@ -1,0 +1,8 @@
+# Please replace the placeholder text with your actual Clerk API keys.
+# Do not add any extra lines or change the format of this file.
+
+# Your Clerk Publishable Key (for the frontend)
+VITE_CLERK_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY_HERE
+
+# Your Clerk Secret Key (for the backend)
+CLERK_SECRET_KEY=YOUR_SECRET_KEY_HERE
