@@ -1,1 +1,0 @@
-CLERK_SECRET_KEY: "sk_test_ZjsFwlndSla3KAecLMBMHgtRIV0odjemdWtqp0GdvF"
