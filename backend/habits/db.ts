@@ -1,4 +1,5 @@
-import { SQL } from 'encore.dev/sql';
+import { SQLDatabase } from "encore.dev/storage/sqldb";
 
-// Defines a database named 'habits', connected to the 'habits' PostgreSQL database.
-export const habitsDB = SQL.database('habits');
+export const habitsDB = new SQLDatabase("habits", {
+  migrations: "./migrations",
+});
